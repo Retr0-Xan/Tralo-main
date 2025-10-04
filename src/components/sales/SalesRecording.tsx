@@ -110,7 +110,7 @@ const SalesRecording = () => {
       return;
     }
 
-    let productName = isCustomProduct ? customProductName : selectedProduct;
+    const productName = isCustomProduct ? customProductName : selectedProduct;
     let stockAvailable: number | undefined;
     
     if (!isCustomProduct) {

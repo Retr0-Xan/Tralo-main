@@ -26,7 +26,7 @@ export const useTrustScore = (): TrustScore => {
         setError(null);
 
         // First try to get existing trust score
-        let { data: existingScore, error: fetchError } = await supabase
+        const { data: existingScore, error: fetchError } = await supabase
           .from('user_trust_scores')
           .select('trust_score')
           .eq('user_id', user.id)
