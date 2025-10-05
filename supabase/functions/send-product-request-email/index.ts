@@ -1,7 +1,15 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 
+// Initialize Resend with API key from environment
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+
+// Initialize Supabase client for admin operations
+const supabaseAdmin = createClient(
+  Deno.env.get("SUPABASE_URL") ?? "",
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,6 +26,65 @@ interface ProductRequestEmailRequest {
   userId: string;
 }
 
+// Fallback handler when Resend API key is not configured
+const handleDatabaseOnlyMode = async (req: Request): Promise<Response> => {
+  try {
+    const { 
+      productName, 
+      description, 
+      reason, 
+      priority, 
+      userEmail, 
+      userId 
+    }: ProductRequestEmailRequest = await req.json();
+
+    console.log("Processing product request (database-only mode):", { productName, priority, userEmail, userId });
+
+    // Store the product request in the database
+    const { error: dbError } = await supabaseAdmin
+      .from('product_requests')
+      .insert({
+        user_id: userId,
+        product_name: productName,
+        description: description,
+        reason: reason,
+        priority: priority,
+        status: 'submitted'
+      });
+
+    if (dbError) {
+      throw new Error(`Database error: ${dbError.message}`);
+    }
+
+    console.log(`Product request stored successfully for user ${userId}`);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: "Product request submitted successfully (stored in database)",
+        emailSent: false,
+        stored: true
+      }), 
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
+      }
+    );
+  } catch (error: any) {
+    console.error("Error in database-only mode:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  }
+};
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -25,6 +92,13 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Check if RESEND_API_KEY is configured
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey || resendApiKey.includes("placeholder")) {
+      console.warn("RESEND_API_KEY not properly configured");
+      // Fall back to database storage only
+      return await handleDatabaseOnlyMode(req);
+    }
     const { 
       productName, 
       description, 
@@ -36,10 +110,26 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Processing product request email:", { productName, priority, userEmail, userId });
 
+    // First, store in database
+    const { error: dbError } = await supabaseAdmin
+      .from('product_requests')
+      .insert({
+        user_id: userId,
+        product_name: productName,
+        description: description,
+        reason: reason,
+        priority: priority,
+        status: 'submitted'
+      });
+
+    if (dbError) {
+      throw new Error(`Database error: ${dbError.message}`);
+    }
+
+    console.log(`Product request stored successfully for user ${userId}`);
+
     const recipients = [
-      "kwakuanyimadu@gmail.com",
-      "fredkomensah@gmail.com", 
-      "mayitey.dev@gmail.com"
+      "enquiries.traloapp@gmail.com"
     ];
 
     const priorityColors = {
@@ -125,8 +215,10 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        sent: successful.length,
-        total: recipients.length 
+        message: "Product request submitted and emails sent successfully",
+        emailsSent: successful.length,
+        totalRecipients: recipients.length,
+        stored: true
       }), 
       {
         status: 200,
