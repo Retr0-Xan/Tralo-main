@@ -85,7 +85,7 @@ const ConfirmEmail = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mb-4 flex justify-center">
-            <div className="bg-primary rounded-lg px-4 py-2">
+            <div className="rounded-lg px-4 py-2">
               <TraloLogo />
             </div>
           </div>

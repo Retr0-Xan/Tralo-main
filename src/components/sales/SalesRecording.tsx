@@ -37,17 +37,17 @@ const SalesRecording = () => {
   const [loading, setLoading] = useState(false);
   const [businessProfile, setBusinessProfile] = useState<any>(null);
   const [inventoryProducts, setInventoryProducts] = useState<InventoryProduct[]>([]);
-  
+
   // Multi-step state
   const [currentStep, setCurrentStep] = useState(1);
   const [salesItems, setSalesItems] = useState<ProductItem[]>([]);
-  
+
   // Customer details
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [includeVAT, setIncludeVAT] = useState(false);
   const [additionalNotes, setAdditionalNotes] = useState("");
-  
+
   // Payment details
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit' | 'mobile money' | 'bank transfer'>('cash');
   const [paymentStatus, setPaymentStatus] = useState<'paid_in_full' | 'partial_payment' | 'credit'>('paid_in_full');
@@ -64,7 +64,7 @@ const SalesRecording = () => {
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
-      
+
       try {
         // Fetch business profile - use maybeSingle to avoid error if not exists
         const { data: profileData, error: profileError } = await supabase
@@ -76,7 +76,7 @@ const SalesRecording = () => {
         if (profileError) {
           console.error('Error fetching business profile:', profileError);
         }
-        
+
         setBusinessProfile(profileData);
 
         // Fetch inventory products
@@ -89,9 +89,9 @@ const SalesRecording = () => {
         if (inventoryError) {
           console.error('Error fetching inventory:', inventoryError);
         }
-        
+
         setInventoryProducts(inventoryData || []);
-        
+
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -112,11 +112,11 @@ const SalesRecording = () => {
 
     const productName = isCustomProduct ? customProductName : selectedProduct;
     let stockAvailable: number | undefined;
-    
+
     if (!isCustomProduct) {
       const inventoryItem = inventoryProducts.find(p => p.product_name === selectedProduct);
       stockAvailable = inventoryItem?.current_stock;
-      
+
       if (inventoryItem && quantity > inventoryItem.current_stock) {
         toast({
           title: "Insufficient Stock",
@@ -128,7 +128,7 @@ const SalesRecording = () => {
     }
 
     const itemTotal = (quantity * unitPrice) - discount;
-    
+
     const newItem: ProductItem = {
       id: Date.now().toString(),
       productName,
@@ -141,7 +141,7 @@ const SalesRecording = () => {
     };
 
     setSalesItems([...salesItems, newItem]);
-    
+
     // Reset form but keep payment method and status
     setSelectedProduct("");
     setIsCustomProduct(false);
@@ -189,7 +189,7 @@ const SalesRecording = () => {
     console.log('Sales Items:', salesItems);
     console.log('Business Profile:', businessProfile);
     console.log('User:', user);
-    
+
     if (salesItems.length === 0) {
       toast({
         title: "Error",
@@ -209,20 +209,20 @@ const SalesRecording = () => {
     }
 
     setLoading(true);
-    
+
     try {
       if (!user?.id) {
         throw new Error('You must be logged in to record sales');
       }
-      
+
       if (!businessProfile) {
         throw new Error('Business profile not found. Please complete your business profile first.');
       }
-      
+
       if (!businessProfile.id) {
         throw new Error('Business profile ID is missing. Please contact support.');
       }
-      
+
       console.log('Validation passed, proceeding with sale...');
 
       const grandTotal = calculateGrandTotal();
@@ -232,7 +232,7 @@ const SalesRecording = () => {
       if (customerPhone || customerName) {
         // Check for existing customer by phone number OR name
         let existingCustomer = null;
-        
+
         if (customerPhone) {
           const { data } = await supabase
             .from('customers')
@@ -242,7 +242,7 @@ const SalesRecording = () => {
             .single();
           existingCustomer = data;
         }
-        
+
         // If not found by phone and we have a name, try finding by name
         if (!existingCustomer && customerName) {
           const { data } = await supabase
@@ -255,7 +255,7 @@ const SalesRecording = () => {
         }
 
         const grandTotal = calculateGrandTotal();
-        
+
         if (!existingCustomer) {
           // Create new customer - don't set totals, the trigger will handle that
           const { data: newCustomer, error: customerError } = await supabase
@@ -278,12 +278,12 @@ const SalesRecording = () => {
           const updateData: any = {
             last_purchase_date: new Date().toISOString(),
           };
-          
+
           // Update name if provided and different
           if (customerName && customerName !== existingCustomer.name) {
             updateData.name = customerName;
           }
-          
+
           // Update phone if provided and different
           if (customerPhone && customerPhone !== existingCustomer.phone_number) {
             updateData.phone_number = customerPhone;
@@ -300,7 +300,7 @@ const SalesRecording = () => {
       console.log('Processing sale items...');
       for (const item of salesItems) {
         console.log('Processing item:', item);
-        
+
         // Record the purchase
         const { error: purchaseError } = await supabase
           .from('customer_purchases')
@@ -317,7 +317,7 @@ const SalesRecording = () => {
           console.error('Purchase insert error:', purchaseError);
           throw purchaseError;
         }
-        
+
         console.log('Item recorded successfully');
 
         // Record detailed customer sale if customer info provided
@@ -343,7 +343,7 @@ const SalesRecording = () => {
           console.log('Customer sale recorded');
         }
       }
-      
+
       console.log('All items processed successfully');
 
       if (generateReceipt) {
@@ -377,7 +377,7 @@ const SalesRecording = () => {
             console.error('Receipt generation error:', error);
             throw error;
           }
-          
+
           console.log('Receipt generated successfully');
 
           // Create blob from the HTML response and download
@@ -440,17 +440,17 @@ const SalesRecording = () => {
           console.error('Document save error:', docError);
           throw docError;
         }
-        
+
         console.log('Receipt saved to documents');
       }
 
-      const statusMessage = paymentStatus === 'credit' ? ' on credit' : 
-                           paymentStatus === 'partial_payment' ? ` with partial payment of ¢${partialPaymentAmount.toFixed(2)}` : '';
-      
+      const statusMessage = paymentStatus === 'credit' ? ' on credit' :
+        paymentStatus === 'partial_payment' ? ` with partial payment of ¢${partialPaymentAmount.toFixed(2)}` : '';
+
       console.log('=== SALE COMPLETED SUCCESSFULLY ===');
       console.log('Total Amount:', grandTotal);
       console.log('Payment Status:', paymentStatus);
-      
+
       toast({
         title: "✅ Sale Saved Successfully!",
         description: `Sale of ¢${grandTotal.toFixed(2)} has been recorded${statusMessage}.${generateReceipt ? ' Receipt generated!' : ''}`,
@@ -466,12 +466,12 @@ const SalesRecording = () => {
       setPaymentMethod('cash');
       setPaymentStatus('paid_in_full');
       setPartialPaymentAmount(0);
-      
+
       console.log('Form reset complete');
 
     } catch (error: any) {
       console.error('Error saving sale:', error);
-      
+
       // Provide more detailed error message
       let errorMessage = "Failed to save sale. Please try again.";
       if (error?.message) {
@@ -481,7 +481,7 @@ const SalesRecording = () => {
       } else if (error?.hint) {
         errorMessage = error.hint;
       }
-      
+
       toast({
         title: "Error",
         description: errorMessage,
@@ -511,7 +511,7 @@ const SalesRecording = () => {
             .order('purchase_date', { ascending: false })
             .limit(1)
             .single();
-          
+
           setUnitPrice(lastSale?.amount || inventoryItem.selling_price || 0);
         } catch (error) {
           // Fallback to inventory selling price
@@ -525,11 +525,11 @@ const SalesRecording = () => {
   if (!businessProfile) {
     return (
       <div className="p-6">
-        <Card className="border-2 border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+        <Card className="border-2 border-primary/30 bg-primary/5 dark:bg-primary/15">
           <CardContent className="pt-6">
             <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto">
-                <Building className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto dark:bg-primary/20">
+                <Building className="w-8 h-8 text-primary dark:text-primary-foreground" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold mb-2">Complete Your Business Profile</h3>
@@ -537,9 +537,8 @@ const SalesRecording = () => {
                   Before you can record sales, please complete your business profile with your business name, address, and contact details.
                 </p>
               </div>
-              <Button 
+              <Button
                 onClick={() => navigate("/profile")}
-                className="bg-amber-600 hover:bg-amber-700"
               >
                 <User className="w-4 h-4 mr-2" />
                 Complete Profile Now
@@ -562,7 +561,7 @@ const SalesRecording = () => {
         </CardHeader>
         <CardContent className="space-y-6">
           {salesItems.length > 0 && (
-            <Button 
+            <Button
               onClick={() => setCurrentStep(2)}
               className="w-full mb-4"
             >
@@ -716,7 +715,7 @@ const SalesRecording = () => {
                   <Plus className="w-4 h-4 mr-2" />
                   Add Product to Sale
                 </Button>
-                <Button 
+                <Button
                   onClick={() => setCurrentStep(2)}
                   variant="outline"
                   className="w-full"
@@ -741,7 +740,7 @@ const SalesRecording = () => {
                       <div className="flex-1">
                         <div className="font-medium">{item.productName}</div>
                         <div className="text-sm text-muted-foreground">
-                          {item.quantity} × ¢{item.unitPrice.toFixed(2)} 
+                          {item.quantity} × ¢{item.unitPrice.toFixed(2)}
                           {item.discount > 0 && ` - ¢${item.discount.toFixed(2)} discount`}
                         </div>
                       </div>
@@ -845,14 +844,14 @@ const SalesRecording = () => {
         </Card>
 
         <div className="flex gap-4">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => setCurrentStep(1)}
             className="flex-1"
           >
             Back
           </Button>
-          <Button 
+          <Button
             onClick={saveSaleOnly}
             disabled={loading}
             variant="outline"
@@ -861,7 +860,7 @@ const SalesRecording = () => {
             <Save className="w-4 h-4 mr-2" />
             {loading ? "Saving..." : "Save Sale Only"}
           </Button>
-          <Button 
+          <Button
             onClick={generateAndDownloadReceipt}
             disabled={loading}
             className="flex-1"
@@ -871,7 +870,7 @@ const SalesRecording = () => {
           </Button>
         </div>
 
-        <Button 
+        <Button
           onClick={() => setCurrentStep(1)}
           variant="secondary"
           className="w-full"
