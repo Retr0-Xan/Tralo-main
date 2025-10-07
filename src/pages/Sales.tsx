@@ -106,7 +106,7 @@ const Sales = () => {
                 <h2 className="text-2xl font-semibold text-foreground">Business Expenses</h2>
                 <p className="text-sm text-muted-foreground">Track and approve cost centres for accurate profitability.</p>
               </div>
-              <ExpenseRecording onExpenseRecorded={() => {}} />
+              <ExpenseRecording onExpenseRecorded={() => { }} />
             </div>
           )}
           {activeTab === "dashboard" && <SalesDashboard />}

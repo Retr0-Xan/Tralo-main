@@ -15,9 +15,8 @@ const MetricCard = ({ title, value, icon: Icon, iconBg, helperText }: MetricCard
 
       <div className="flex items-center justify-between">
         <span
-          className={`flex h-12 w-12 items-center justify-center rounded-xl text-lg font-semibold ${
-            iconBg ?? "bg-primary/15 text-primary"
-          }`}
+          className={`flex h-12 w-12 items-center justify-center rounded-xl text-lg font-semibold ${iconBg ?? "bg-primary/15 text-primary"
+            }`}
         >
           <Icon className="h-6 w-6" />
         </span>
