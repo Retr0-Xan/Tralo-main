@@ -1,56 +1,53 @@
 import { useState } from "react";
-import { Package, BarChart3, ArrowLeft } from "lucide-react";
+import { Package, BarChart3, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/PageHeader";
 import InventoryRecording from "@/components/inventory/InventoryRecording";
 import InventoryDashboard from "@/components/inventory/InventoryDashboard";
 
 const Inventory = () => {
   const [activeTab, setActiveTab] = useState<"recording" | "dashboard">("recording");
-  const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
-      <div className="p-6 pt-12">
-        <div className="flex items-center gap-4 mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
+    <div className="space-y-6">
+      <PageHeader
+        icon={Package}
+        title="Inventory Control"
+        description="Capture stock receipts, reconciliations, and monitor availability."
+        actions={
+          <Button variant="outline" size="sm" className="rounded-xl border-border/70" onClick={() => setActiveTab("dashboard")}>
+            <ClipboardCheck className="mr-2 h-4 w-4" />
+            View Analytics
           </Button>
-        </div>
-        <h1 className="text-3xl font-bold text-foreground mb-6">Inventory Management</h1>
-        
-        {/* Toggle Bar */}
-        <div className="flex bg-muted rounded-lg p-1 mb-6">
+        }
+      />
+
+      <Card className="rounded-2xl border border-border/70">
+        <div className="flex flex-wrap gap-2 border-b border-border/60 bg-muted/30 p-2">
           <Button
+            size="sm"
             variant={activeTab === "recording" ? "default" : "ghost"}
             onClick={() => setActiveTab("recording")}
-            className="flex-1 flex items-center justify-center gap-2"
+            className="rounded-xl px-4 py-2"
           >
-            <Package className="w-4 h-4" />
+            <Package className="mr-2 h-4 w-4" />
             Record Inventory
           </Button>
           <Button
+            size="sm"
             variant={activeTab === "dashboard" ? "default" : "ghost"}
             onClick={() => setActiveTab("dashboard")}
-            className="flex-1 flex items-center justify-center gap-2"
+            className="rounded-xl px-4 py-2"
           >
-            <BarChart3 className="w-4 h-4" />
-            Dashboard
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Inventory Analytics
           </Button>
         </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-6">
-        {activeTab === "recording" ? <InventoryRecording /> : <InventoryDashboard />}
-      </div>
+        <CardContent className="px-4 py-6 md:px-6">
+          {activeTab === "recording" ? <InventoryRecording /> : <InventoryDashboard />}
+        </CardContent>
+      </Card>
     </div>
   );
 };

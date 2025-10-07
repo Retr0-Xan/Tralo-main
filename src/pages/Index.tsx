@@ -1,134 +1,154 @@
-import { Coins, Package, ShoppingCart, FileBarChart, User, Bell, Receipt } from "lucide-react";
+import {
+  Coins,
+  Package,
+  ShoppingCart,
+  FileBarChart,
+  TrendingUp,
+  Bell,
+  Receipt,
+  LayoutDashboard,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import MetricCard from "@/components/MetricCard";
 import MarketTip from "@/components/MarketTip";
 import ActionButton from "@/components/ActionButton";
-import Navigation from "@/components/Navigation";
 import QRCodeSection from "@/components/QRCodeSection";
 import TradeIndexInsights from "@/components/trade-index/TradeIndexInsights";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import TraloLogo from "@/components/TraloLogo";
 import { useHomeMetrics } from "@/hooks/useHomeMetrics";
 import { useAuth } from "@/hooks/useAuth";
-import { useEffect } from "react";
 import TrustScoreBadge from "@/components/TrustScoreBadge";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const { todaysSales, monthlyGoodsTraded, currentStockValue, loading } = useHomeMetrics();
-
-  // Redirect to auth if not logged in
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [user, authLoading, navigate]);
 
   const formatCurrency = (amount: number, currency: string = "¢") => {
     return `${currency}${amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
-  // Show loading state while checking authentication
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render anything if not authenticated (will redirect)
-  if (!user) {
-    return null;
-  }
+  const ownerName = user?.user_metadata?.owner_name || user?.email?.split("@")[0] || "there";
+  const averageDailySales = monthlyGoodsTraded > 0 ? monthlyGoodsTraded / new Date().getDate() : 0;
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
-      <div className="flex items-center justify-between p-6 pt-12">
-        <div className="flex flex-col gap-2">
-          <TraloLogo />
-          <h2 className="text-2xl font-semibold text-foreground">
-            Hello, {user?.user_metadata?.owner_name || user?.email?.split('@')[0] || 'there'}
-          </h2>
-          <TrustScoreBadge size="md" />
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/profile")}
-            className="flex items-center gap-2"
-          >
-            <User className="w-4 h-4" />
-            Profile
-          </Button>
-          <QRCodeSection />
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Operations Control Center"
+        description={`Welcome back, ${ownerName}. Review today's performance and next steps.`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <TrustScoreBadge size="md" />
+            <Button variant="outline" size="sm" onClick={() => navigate("/profile")}
+              className="rounded-xl border-border/70">
+              Manage Profile
+            </Button>
+          </div>
+        }
+      />
 
-      {/* Metrics Grid */}
-      <div className="px-6 mb-8">
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <MetricCard
-            title="Today's Sales"
-            value={loading ? "..." : formatCurrency(todaysSales, "¢")}
-            icon={Coins}
-            iconBg="bg-accent text-accent-foreground"
-          />
-          <MetricCard
-            title="Total Goods Traded (This Month)"
-            value={loading ? "..." : formatCurrency(monthlyGoodsTraded, "¢")}
-            icon={ShoppingCart}
-            iconBg="bg-green-500 text-white"
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-4 mb-6">
-          <MetricCard
-            title="Current Stock Value"
-            value={loading ? "..." : formatCurrency(currentStockValue)}
-            icon={Package}
-            iconBg="bg-blue-500 text-white"
-          />
-        </div>
-        
-        <MarketTip />
-      </div>
-
-      {/* Action Buttons */}
-      <div className="px-6 space-y-4 mb-8">
-        <ActionButton
-          label="Record Sale"
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Today's Sales"
+          value={loading ? "Updating…" : formatCurrency(todaysSales, "¢")}
+          icon={Coins}
+          helperText="Cash & digital channels"
+        />
+        <MetricCard
+          title="Goods Traded (Month)"
+          value={loading ? "Updating…" : formatCurrency(monthlyGoodsTraded, "¢")}
           icon={ShoppingCart}
-          variant="primary"
-          onClick={() => navigate("/sales")}
+          helperText="Inclusive of wholesales"
         />
-        <ActionButton
-          label="Record Expense"
-          icon={Receipt}
-          variant="secondary"
-          onClick={() => navigate("/sales?tab=expenses")}
+        <MetricCard
+          title="Current Stock Value"
+          value={loading ? "Calculating…" : formatCurrency(currentStockValue)}
+          icon={Package}
+          helperText="Based on inventory records"
         />
-        <ActionButton
-          label="Business Reminders"
-          icon={Bell}
-          variant="secondary"
-          onClick={() => navigate("/reminders")}
+        <MetricCard
+          title="Avg. Daily Revenue"
+          value={loading ? "Updating…" : formatCurrency(Math.round(averageDailySales), "¢")}
+          icon={TrendingUp}
+          helperText="Month-to-date performance"
         />
-        <ActionButton
-          label="Daily Trade Sales Summary"
-          icon={FileBarChart}
-          variant="secondary"
-          onClick={() => navigate("/sales?tab=summary")}
-        />
-      </div>
+      </section>
 
-      {/* Navigation */}
-      <Navigation />
+      <section className="grid gap-6 lg:grid-cols-7">
+        <div className="space-y-6 lg:col-span-4">
+          <Card className="rounded-2xl border border-border/70">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">Executive Snapshot</CardTitle>
+              <CardDescription>Monitor real-time market signals and performance insights.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <MarketTip />
+              <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                Keep an eye on suppliers with delayed restocks and prioritize high-demand items for replenishment.
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border border-border/70">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">Trade Index Highlights</CardTitle>
+              <CardDescription>Latest intelligence from your watchlist and sector benchmarks.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TradeIndexInsights />
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6 lg:col-span-3">
+          <Card className="rounded-2xl border border-border/70">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">Quick Actions</CardTitle>
+              <CardDescription>Launch operational workflows in a single click.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <ActionButton label="Record Sale" icon={ShoppingCart} onClick={() => navigate("/sales")}
+                variant="primary"
+              />
+              <ActionButton
+                label="Record Expense"
+                icon={Receipt}
+                variant="secondary"
+                onClick={() => navigate("/sales?tab=expenses")}
+              />
+              <ActionButton
+                label="Business Reminders"
+                icon={Bell}
+                variant="secondary"
+                onClick={() => navigate("/reminders")}
+              />
+              <ActionButton
+                label="Daily Sales Summary"
+                icon={FileBarChart}
+                variant="secondary"
+                onClick={() => navigate("/sales?tab=summary")}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border border-border/70">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl">Customer Engagement</CardTitle>
+              <CardDescription>Share your smart QR code and track trust performance.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 p-4">
+                <p className="text-sm font-medium text-foreground">Digital Trust Score</p>
+                <div className="mt-2"><TrustScoreBadge size="lg" /></div>
+              </div>
+              <QRCodeSection />
+            </CardContent>
+          </Card>
+        </div>
+      </section>
     </div>
   );
 };

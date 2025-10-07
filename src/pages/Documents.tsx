@@ -1,36 +1,29 @@
-import { ArrowLeft } from "lucide-react";
+import { FileText, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/PageHeader";
 import DocumentsSection from "@/components/documents/DocumentsSection";
 
 const Documents = () => {
-  const navigate = useNavigate();
-
   return (
-    <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
-      <div className="p-6 pt-12">
-        <div className="flex items-center gap-4 mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
+    <div className="space-y-6">
+      <PageHeader
+        icon={FileText}
+        title="Document Workspace"
+        description="Generate invoices, receipts, and export-ready statements from a single console."
+        actions={
+          <Button variant="outline" size="sm" className="rounded-xl border-border/70">
+            <Printer className="mr-2 h-4 w-4" />
+            Print Center
           </Button>
-        </div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Documents</h1>
-        <p className="text-muted-foreground">
-          Create and manage your business documents
-        </p>
-      </div>
+        }
+      />
 
-      {/* Content */}
-      <div className="px-6">
-        <DocumentsSection />
-      </div>
+      <Card className="rounded-2xl border border-border/70">
+        <CardContent className="px-4 py-6 md:px-6">
+          <DocumentsSection />
+        </CardContent>
+      </Card>
     </div>
   );
 };

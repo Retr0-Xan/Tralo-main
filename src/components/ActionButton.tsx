@@ -1,4 +1,4 @@
-import { LucideIcon } from "lucide-react";
+import { ChevronRight, LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ActionButtonProps {
@@ -9,17 +9,27 @@ interface ActionButtonProps {
 }
 
 const ActionButton = ({ label, icon: Icon, variant = "primary", onClick }: ActionButtonProps) => {
+  const baseStyles =
+    "flex w-full items-center justify-between rounded-2xl border border-border/70 px-5 py-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md";
+
+  const variantStyles =
+    variant === "primary"
+      ? "bg-primary/10 hover:bg-primary/15 text-primary"
+      : "bg-card hover:bg-card/90 text-foreground";
+
   return (
     <Button
       onClick={onClick}
-      className={`w-full py-6 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 ${
-        variant === "primary"
-          ? "bg-primary hover:bg-primary-hover text-primary-foreground shadow-primary"
-          : "bg-secondary hover:bg-card text-secondary-foreground border border-border"
-      }`}
+      variant="ghost"
+      className={`${baseStyles} ${variantStyles}`}
     >
-      <Icon className="w-6 h-6 mr-3" />
-      {label}
+      <span className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          <Icon className="h-5 w-5" />
+        </span>
+        <span className="text-sm font-semibold md:text-base">{label}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 text-muted-foreground" />
     </Button>
   );
 };

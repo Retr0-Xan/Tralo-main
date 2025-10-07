@@ -1,67 +1,59 @@
 import { useState } from "react";
-import { TrendingUp, Eye, Lightbulb, ArrowLeft } from "lucide-react";
+import { TrendingUp, Eye, Lightbulb, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/PageHeader";
 import TradeIndexMain from "@/components/trade-index/TradeIndexMain";
 import TradeIndexWatchlist from "@/components/trade-index/TradeIndexWatchlist";
 import TradeInsightsPage from "@/components/trade-index/TradeInsightsPage";
 
 const TradeIndex = () => {
   const [activeTab, setActiveTab] = useState<"index" | "watchlist" | "insights">("index");
-  const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
-      <div className="p-6 pt-12">
-        <div className="flex items-center gap-4 mb-6">
+    <div className="space-y-6">
+      <PageHeader
+        icon={Radar}
+        title="Trade Index Intelligence"
+        description="Monitor market movements, watchlist signals, and AI-generated insights."
+      />
+
+      <Card className="rounded-2xl border border-border/70">
+        <div className="flex flex-wrap gap-2 border-b border-border/60 bg-muted/30 p-2">
           <Button
-            variant="ghost"
             size="sm"
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
-          </Button>
-        </div>
-        <h1 className="text-3xl font-bold text-foreground mb-6">Trade Index</h1>
-        
-        {/* Toggle Bar */}
-        <div className="flex bg-muted rounded-lg p-1 mb-6">
-          <Button
             variant={activeTab === "index" ? "default" : "ghost"}
             onClick={() => setActiveTab("index")}
-            className="flex-1 flex items-center justify-center gap-2"
+            className="rounded-xl px-4 py-2"
           >
-            <TrendingUp className="w-4 h-4" />
+            <TrendingUp className="mr-2 h-4 w-4" />
             Trade Index
           </Button>
           <Button
+            size="sm"
             variant={activeTab === "watchlist" ? "default" : "ghost"}
             onClick={() => setActiveTab("watchlist")}
-            className="flex-1 flex items-center justify-center gap-2"
+            className="rounded-xl px-4 py-2"
           >
-            <Eye className="w-4 h-4" />
+            <Eye className="mr-2 h-4 w-4" />
             Watchlist
           </Button>
           <Button
+            size="sm"
             variant={activeTab === "insights" ? "default" : "ghost"}
             onClick={() => setActiveTab("insights")}
-            className="flex-1 flex items-center justify-center gap-2"
+            className="rounded-xl px-4 py-2"
           >
-            <Lightbulb className="w-4 h-4" />
+            <Lightbulb className="mr-2 h-4 w-4" />
             Trade Insights
           </Button>
         </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-6 space-y-6">
-        {activeTab === "index" && <TradeIndexMain />}
-        {activeTab === "watchlist" && <TradeIndexWatchlist />}
-        {activeTab === "insights" && <TradeInsightsPage />}
-      </div>
+        <CardContent className="px-4 py-6 md:px-6 space-y-6">
+          {activeTab === "index" && <TradeIndexMain />}
+          {activeTab === "watchlist" && <TradeIndexWatchlist />}
+          {activeTab === "insights" && <TradeInsightsPage />}
+        </CardContent>
+      </Card>
     </div>
   );
 };
