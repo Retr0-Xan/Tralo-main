@@ -53,7 +53,7 @@ const Auth = () => {
       // Check for email confirmation
       const urlParams = new URLSearchParams(window.location.search);
       const confirmed = urlParams.get('confirmed');
-      
+
       if (confirmed === 'true') {
         toast({
           title: "Email Confirmed! ✅",
@@ -63,14 +63,14 @@ const Auth = () => {
         window.history.replaceState({}, document.title, "/auth");
         return;
       }
-      
+
       // Check if user is already logged in
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         navigate("/");
       }
     };
-    
+
     handleAuthState();
   }, [navigate, toast]);
 
@@ -86,7 +86,7 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
     setErrors({});
-    
+
     try {
       // Validate input
       const validatedData = signInSchema.parse({
@@ -148,7 +148,7 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
     setErrors({});
-    
+
     try {
       // Validate input
       const validatedData = signUpSchema.parse(formData);
@@ -196,7 +196,7 @@ const Auth = () => {
       } else if (data.session) {
         // User is immediately signed in (email confirmation disabled)
         toast({
-          title: "Account Created Successfully! 🎉", 
+          title: "Account Created Successfully! 🎉",
           description: "Welcome to Tralo! You can now start managing your business.",
         });
         navigate("/");
@@ -212,7 +212,7 @@ const Auth = () => {
         setErrors(fieldErrors);
       } else {
         toast({
-          title: "Error", 
+          title: "Error",
           description: "An unexpected error occurred. Please try again.",
           variant: "destructive",
         });
@@ -236,8 +236,8 @@ const Auth = () => {
           </p>
           <CardTitle>{isSignUp ? "Create Account" : "Welcome Back"}</CardTitle>
           <CardDescription>
-            {isSignUp 
-              ? "Set up your business profile to get started" 
+            {isSignUp
+              ? "Set up your business profile to get started"
               : "Sign in to your trading account"
             }
           </CardDescription>
@@ -343,7 +343,7 @@ const Auth = () => {
                 </div>
               </>
             )}
-            
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -359,7 +359,7 @@ const Auth = () => {
                 <p className="text-sm text-destructive">{errors.email}</p>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -409,8 +409,8 @@ const Auth = () => {
               onClick={() => setIsSignUp(!isSignUp)}
               className="text-primary hover:underline text-sm"
             >
-              {isSignUp 
-                ? "Already have an account? Sign In" 
+              {isSignUp
+                ? "Already have an account? Sign In"
                 : "Don't have an account? Sign Up"
               }
             </button>

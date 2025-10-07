@@ -37,13 +37,13 @@ const ResetPassword = () => {
       // Handle both hash and search parameters as Supabase can use either
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const urlParams = new URLSearchParams(window.location.search);
-      
+
       // Get tokens from either hash or search params
       const accessToken = hashParams.get('access_token') || urlParams.get('access_token');
       const refreshToken = hashParams.get('refresh_token') || urlParams.get('refresh_token');
       const type = hashParams.get('type') || urlParams.get('type');
       const errorParam = hashParams.get('error') || urlParams.get('error');
-      
+
       // Handle errors first
       if (errorParam) {
         let errorMessage = "There was an error with your reset link.";
@@ -58,7 +58,7 @@ const ResetPassword = () => {
         navigate("/auth");
         return;
       }
-      
+
       // Handle the password recovery callback
       if (type === 'recovery') {
         if (accessToken && refreshToken) {
@@ -68,7 +68,7 @@ const ResetPassword = () => {
               access_token: accessToken,
               refresh_token: refreshToken
             });
-            
+
             if (error) {
               console.error('Session error:', error);
               toast({
@@ -79,17 +79,17 @@ const ResetPassword = () => {
               navigate("/auth");
               return;
             }
-            
+
             // Check if we have a pending password from the forgot password flow
             const pendingPassword = sessionStorage.getItem('pendingPassword');
             const pendingEmail = sessionStorage.getItem('pendingEmail');
-            
+
             if (pendingPassword && pendingEmail) {
               // Update the user's password
               const { error: updateError } = await supabase.auth.updateUser({
                 password: pendingPassword
               });
-              
+
               if (updateError) {
                 toast({
                   title: "Password Update Failed",
@@ -100,12 +100,12 @@ const ResetPassword = () => {
                 // Clean up stored password
                 sessionStorage.removeItem('pendingPassword');
                 sessionStorage.removeItem('pendingEmail');
-                
+
                 toast({
                   title: "Password Updated Successfully! 🎉",
                   description: "Your password has been changed. You can now sign in with your new password.",
                 });
-                
+
                 // Sign out and redirect to login
                 await supabase.auth.signOut();
                 setTimeout(() => {
@@ -114,15 +114,15 @@ const ResetPassword = () => {
                 return;
               }
             }
-            
+
             // Clear both hash and search parameters
             window.history.replaceState({}, document.title, "/reset-password");
-            
+
             toast({
               title: "Ready to Reset",
               description: "You can now set your new password.",
             });
-            
+
           } catch (error) {
             console.error('Auth error:', error);
             toast({
@@ -166,7 +166,7 @@ const ResetPassword = () => {
     e.preventDefault();
     setIsLoading(true);
     setErrors({});
-    
+
     try {
       // Validate input
       const validatedData = resetPasswordSchema.parse(formData);
@@ -188,18 +188,18 @@ const ResetPassword = () => {
         title: "Password Updated Successfully! 🎉",
         description: "Your password has been changed. You can now sign in with your new password.",
       });
-      
+
       // Clear the form
       setFormData({ password: "", confirmPassword: "" });
-      
+
       // Sign out the user so they can sign in with the new password
       await supabase.auth.signOut();
-      
+
       // Show success state briefly before redirecting
       setTimeout(() => {
         navigate("/auth");
       }, 2000);
-      
+
     } catch (error) {
       if (error instanceof z.ZodError) {
         const fieldErrors: Record<string, string> = {};
@@ -269,7 +269,7 @@ const ResetPassword = () => {
                 <p className="text-sm text-destructive">{errors.password}</p>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm New Password</Label>
               <div className="relative">

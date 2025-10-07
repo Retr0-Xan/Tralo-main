@@ -20,7 +20,7 @@ const ConfirmEmail = () => {
       // Handle both hash and search parameters as Supabase can use either
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const urlParams = new URLSearchParams(window.location.search);
-      
+
       const accessToken = hashParams.get('access_token') || urlParams.get('access_token');
       const refreshToken = hashParams.get('refresh_token') || urlParams.get('refresh_token');
       const type = hashParams.get('type') || urlParams.get('type');
@@ -53,10 +53,10 @@ const ConfirmEmail = () => {
               title: "Email Confirmed!",
               description: "Your email has been successfully confirmed. Welcome to Tralo!",
             });
-            
+
             // Sign out the user so they can sign in properly
             await supabase.auth.signOut();
-            
+
             // Clear URL parameters
             window.history.replaceState({}, document.title, "/confirm-email");
           }
@@ -69,7 +69,7 @@ const ConfirmEmail = () => {
       } else if (type === 'signup' && (!accessToken || !refreshToken)) {
         setError("The confirmation link is incomplete. Please check your email for a new link.");
       }
-      
+
       setIsLoading(false);
     };
 
@@ -108,9 +108,9 @@ const ConfirmEmail = () => {
             )}
           </CardTitle>
           <CardDescription>
-            {isLoading 
+            {isLoading
               ? "Please wait while we confirm your email address..."
-              : isConfirmed 
+              : isConfirmed
                 ? "Your account has been successfully activated"
                 : "There was an issue with your email confirmation"
             }

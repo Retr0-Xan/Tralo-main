@@ -119,4 +119,8 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  .dark .lucide {
+    color: #ffffff !important;
+  }
 }
