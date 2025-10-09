@@ -226,12 +226,10 @@ const Auth = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mb-4 flex justify-center">
-            <div className="rounded-lg px-4 py-2">
-              <TraloLogo />
-            </div>
+          <div className="-mt-12 flex justify-center">
+            <TraloLogo className="h-[13.5rem] w-auto" />
           </div>
-          <p className="text-muted-foreground text-sm mb-4">
+          <p className="text-muted-foreground text-sm mb-4 mt-0">
             Trade today, the future of trade tomorrow
           </p>
           <CardTitle>{isSignUp ? "Create Account" : "Welcome Back"}</CardTitle>
