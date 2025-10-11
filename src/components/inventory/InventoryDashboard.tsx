@@ -109,6 +109,13 @@ const InventoryDashboard = () => {
         .select('product_name, unit_cost, quantity_received, total_cost')
         .eq('user_id', user.id);
 
+      // Get inventory movements as a fallback for cost data
+      const { data: movements } = await supabase
+        .from('inventory_movements')
+        .select('product_name, quantity, unit_price, movement_type')
+        .eq('user_id', user.id)
+        .eq('movement_type', 'received');
+
       // Get recent sales data
       const { data: sales } = await supabase
         .from('customer_purchases')
@@ -118,38 +125,73 @@ const InventoryDashboard = () => {
 
       if (products) {
         const processedInventory = products.map(product => {
+          const currentStock = Number(product.current_stock ?? 0);
+          const productName = (product.product_name || '').toLowerCase();
+
           // Calculate average costs from receipts
           const productReceipts = receipts?.filter(r => 
-            r.product_name.toLowerCase() === product.product_name.toLowerCase()
+            (r.product_name || '').toLowerCase() === productName
           ) || [];
-          
-          const totalReceived = productReceipts.reduce((sum, r) => sum + r.quantity_received, 0);
-          const totalCost = productReceipts.reduce((sum, r) => sum + (r.total_cost || 0), 0);
-          const avgCostPrice = totalReceived > 0 ? totalCost / totalReceived : 0;
+
+          const totalReceived = productReceipts.reduce((sum, r) => 
+            sum + Number(r.quantity_received ?? 0),
+          0);
+          const totalCost = productReceipts.reduce((sum, r) => {
+            const receiptCost = r.total_cost ?? (Number(r.unit_cost ?? 0) * Number(r.quantity_received ?? 0));
+            return sum + Number(receiptCost ?? 0);
+          }, 0);
+
+          let avgCostPrice = totalReceived > 0 ? totalCost / totalReceived : 0;
+
+          if (avgCostPrice === 0) {
+            const productMovements = movements?.filter(m => 
+              (m.product_name || '').toLowerCase() === productName
+            ) || [];
+
+            const movementTotals = productMovements.reduce(
+              (acc, movement) => {
+                const qty = Math.abs(Number(movement.quantity ?? 0));
+                const unitPrice = Number(movement.unit_price ?? 0);
+                return {
+                  quantity: acc.quantity + qty,
+                  cost: acc.cost + qty * unitPrice,
+                };
+              },
+              { quantity: 0, cost: 0 }
+            );
+
+            if (movementTotals.quantity > 0 && movementTotals.cost > 0) {
+              avgCostPrice = movementTotals.cost / movementTotals.quantity;
+            }
+          }
+
+          if (avgCostPrice === 0 && product.selling_price) {
+            avgCostPrice = Number(product.selling_price);
+          }
 
           // Calculate average selling price from sales
-          const productSales = sales?.filter(s => 
-            s.product_name.toLowerCase().includes(product.product_name.toLowerCase()) ||
-            product.product_name.toLowerCase().includes(s.product_name.toLowerCase())
-          ) || [];
+          const productSales = sales?.filter(s => {
+            const saleName = (s.product_name || '').toLowerCase();
+            return saleName.includes(productName) || productName.includes(saleName);
+          }) || [];
           
           const totalSalesAmount = productSales.reduce((sum, s) => sum + Number(s.amount), 0);
           const avgSellingPrice = productSales.length > 0 ? totalSalesAmount / productSales.length : 0;
 
           // Calculate current stock value based on cost price from inventory receipts
-          const currentValue = product.current_stock * (avgCostPrice || 0);
+          const currentValue = currentStock * (avgCostPrice || 0);
 
           // Determine status
           let status: 'healthy' | 'low' | 'out' | 'slow';
           let recommendation: string;
 
-          if (product.current_stock === 0) {
+          if (currentStock === 0) {
             status = 'out';
             recommendation = `🚨 Out of stock - reorder ${product.product_name} immediately`;
-          } else if (product.current_stock < 5) {
+          } else if (currentStock < 5) {
             status = 'low';
-            recommendation = `⚠️ Low stock - only ${product.current_stock} ${product.product_name} remaining`;
-          } else if (productSales.length === 0 && product.current_stock > 20) {
+            recommendation = `⚠️ Low stock - only ${currentStock} ${product.product_name} remaining`;
+          } else if (productSales.length === 0 && currentStock > 20) {
             status = 'slow';
             recommendation = `📊 ${product.product_name} moving slowly - consider promotion`;
           } else {
@@ -160,9 +202,9 @@ const InventoryDashboard = () => {
           return {
             id: product.id,
             product_name: product.product_name,
-            current_stock: product.current_stock || 0,
+            current_stock: currentStock,
             last_sale_date: product.last_sale_date,
-            total_sales_this_month: product.total_sales_this_month || 0,
+            total_sales_this_month: Number(product.total_sales_this_month ?? 0),
             avg_selling_price: avgSellingPrice,
             avg_cost_price: avgCostPrice,
             total_value: currentValue,
