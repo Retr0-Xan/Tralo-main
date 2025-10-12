@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import logoWordmark from "@/assets/tralo-new-zoom.jpg";
+import logoWordmark from "@/assets/tralo-new-zoom-removebg-preview.png";
 
 interface TraloLogoProps {
   className?: string;

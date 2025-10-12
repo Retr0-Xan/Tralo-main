@@ -3,10 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  TrendingUp, 
-  Minus, 
-  MapPin, 
+import {
+  TrendingUp,
+  Minus,
+  MapPin,
   ArrowUp,
   ArrowDown,
   Lightbulb
@@ -21,10 +21,10 @@ const TradeIndexMain = () => {
   const getStatusBadge = (status: string) => {
     const colors = {
       rising: "bg-red-100 text-red-800 border-red-200",
-      dropping: "bg-green-100 text-green-800 border-green-200", 
+      dropping: "bg-green-100 text-green-800 border-green-200",
       stable: "bg-yellow-100 text-yellow-800 border-yellow-200"
     };
-    
+
     return (
       <Badge variant="outline" className={colors[status as keyof typeof colors]}>
         {status}
@@ -35,13 +35,13 @@ const TradeIndexMain = () => {
   const getBetterMarket = (price1: string | undefined, price2: string | undefined) => {
     // Handle undefined or null prices
     if (!price1 || !price2) return "unknown";
-    
+
     const p1 = parseFloat(price1.replace('₵', '').replace(',', ''));
     const p2 = parseFloat(price2.replace('₵', '').replace(',', ''));
-    
+
     // Handle invalid parsed numbers
     if (isNaN(p1) || isNaN(p2)) return "unknown";
-    
+
     if (p1 < p2) return selectedMarket1;
     if (p2 < p1) return selectedMarket2;
     return "same";
@@ -117,22 +117,20 @@ const TradeIndexMain = () => {
                       ) : (
                         <Minus className="w-4 h-4 text-gray-600" />
                       )}
-                      <span className={`text-sm ${
-                        commodity.trend === 'up' ? 'text-red-600' :
-                        commodity.trend === 'down' ? 'text-green-600' :
-                        'text-gray-600'
-                      }`}>
+                      <span className={`text-sm ${commodity.trend === 'up' ? 'text-red-600' :
+                          commodity.trend === 'down' ? 'text-green-600' :
+                            'text-gray-600'
+                        }`}>
                         {commodity.trend === 'up' ? 'Rising' :
-                         commodity.trend === 'down' ? 'Falling' : 'Stable'}
+                          commodity.trend === 'down' ? 'Falling' : 'Stable'}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className={`font-medium ${
-                      commodity.trend === 'up' ? 'text-red-600' :
-                      commodity.trend === 'down' ? 'text-green-600' :
-                      'text-gray-600'
-                    }`}>
+                    <span className={`font-medium ${commodity.trend === 'up' ? 'text-red-600' :
+                        commodity.trend === 'down' ? 'text-green-600' :
+                          'text-gray-600'
+                      }`}>
                       {commodity.priceChange}
                     </span>
                   </TableCell>
@@ -198,12 +196,12 @@ const TradeIndexMain = () => {
                 const market1Price = selectedMarket1 === 'makola' ? commodity.makolaPrice : commodity.texpoPrice;
                 const market2Price = selectedMarket2 === 'makola' ? commodity.makolaPrice : commodity.texpoPrice;
                 const betterMarket = getBetterMarket(market1Price, market2Price);
-                
+
                 // Calculate price difference
                 const price1 = parseFloat(market1Price.replace('₵', '').replace(',', ''));
                 const price2 = parseFloat(market2Price.replace('₵', '').replace(',', ''));
                 const difference = Math.abs(price1 - price2).toFixed(2);
-                
+
                 return (
                   <TableRow key={commodity.name}>
                     <TableCell className="font-medium">{commodity.name}</TableCell>
@@ -211,19 +209,19 @@ const TradeIndexMain = () => {
                     <TableCell className="font-semibold">{market1Price}</TableCell>
                     <TableCell className="font-semibold">{market2Price}</TableCell>
                     <TableCell>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={
                           betterMarket === "unknown" ? "bg-gray-100 text-gray-800 border-gray-200" :
-                          betterMarket === selectedMarket1 ? "bg-green-100 text-green-800 border-green-200" :
-                          betterMarket === selectedMarket2 ? "bg-green-100 text-green-800 border-green-200" :
-                          "bg-yellow-100 text-yellow-800 border-yellow-200"
+                            betterMarket === selectedMarket1 ? "bg-green-100 text-green-800 border-green-200" :
+                              betterMarket === selectedMarket2 ? "bg-green-100 text-green-800 border-green-200" :
+                                "bg-yellow-100 text-yellow-800 border-yellow-200"
                         }
                       >
                         {betterMarket === "unknown" ? "⚪ No Data" :
-                         betterMarket === selectedMarket1 ? `🟢 ${selectedMarket1 === 'makola' ? 'Makola' : 'Texpo'}` : 
-                         betterMarket === selectedMarket2 ? `🟢 ${selectedMarket2 === 'makola' ? 'Makola' : 'Texpo'}` : 
-                         "🟡 Same Price"}
+                          betterMarket === selectedMarket1 ? `🟢 ${selectedMarket1 === 'makola' ? 'Makola' : 'Texpo'}` :
+                            betterMarket === selectedMarket2 ? `🟢 ${selectedMarket2 === 'makola' ? 'Makola' : 'Texpo'}` :
+                              "🟡 Same Price"}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -261,9 +259,8 @@ const TradeIndexMain = () => {
                     </div>
                   </div>
                 </div>
-                <div className={`text-right ${
-                  mover.trend === 'up' ? 'text-red-600' : 'text-green-600'
-                }`}>
+                <div className={`text-right ${mover.trend === 'up' ? 'text-red-600' : 'text-green-600'
+                  }`}>
                   <div className="font-semibold">{mover.priceChange}</div>
                   <div className="text-xs">
                     {mover.trend === 'up' ? 'vs last week' : 'price drop'}
@@ -275,7 +272,7 @@ const TradeIndexMain = () => {
         </CardContent>
       </Card>
 
-  {/* Smart Trading Tip, Market Insights, Product Performance, and Inventory Linkages removed per request */}
+      {/* Smart Trading Tip, Market Insights, Product Performance, and Inventory Linkages removed per request */}
     </div>
   );
 };
