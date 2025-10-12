@@ -10,6 +10,9 @@ import { Plus, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import SupplierForm from "./SupplierForm";
+import { useQueryClient } from "@tanstack/react-query";
+import { inventoryOverviewQueryKey } from "@/hooks/useInventoryOverview";
+import { homeMetricsQueryKey } from "@/hooks/useHomeMetrics";
 
 const InventoryRecording = () => {
   const [productName, setProductName] = useState("");
@@ -31,24 +34,25 @@ const InventoryRecording = () => {
   const [localUnit, setLocalUnit] = useState("");
   const [recordAsExpense, setRecordAsExpense] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const popularCommodities = [
-    "Rice", "Beans", "Gari", "Tomatoes", "Onions", "Pepper", "Fish", "Chicken", 
+    "Rice", "Beans", "Gari", "Tomatoes", "Onions", "Pepper", "Fish", "Chicken",
     "Beef", "Plantain", "Yam", "Cassava", "Maize", "Groundnuts", "Palm Oil"
   ];
 
   const internationalUnits = ["kg", "g", "liters", "ml", "pieces", "meters", "cm"];
-  
+
   const localUnits = [
-    "olonka", "cup", "bowl", "bucket", "bag", "sack", "rubber", "bottle", "gallon", 
-    "drum", "barrel", "piece", "heap", "pile", "basket", "crate", "box", "packet", 
-    "roll", "tuber", "ton", "unit", "head", "slab", "cut", "portion", "bundle", 
-    "finger", "hand", "bunch", "pan", "basin", "trip", "board", "yard", "bale", 
+    "olonka", "cup", "bowl", "bucket", "bag", "sack", "rubber", "bottle", "gallon",
+    "drum", "barrel", "piece", "heap", "pile", "basket", "crate", "box", "packet",
+    "roll", "tuber", "ton", "unit", "head", "slab", "cut", "portion", "bundle",
+    "finger", "hand", "bunch", "pan", "basin", "trip", "board", "yard", "bale",
     "dozen", "pair", "set", "tin"
   ];
 
   const productCategories = [
-    "Electronics", "Staples", "Vegetables", "Fruits", "Meat & Fish", "Dairy", 
+    "Electronics", "Staples", "Vegetables", "Fruits", "Meat & Fish", "Dairy",
     "Beverages", "Household Items", "Personal Care", "Clothing", "Tools", "Other"
   ];
 
@@ -62,7 +66,7 @@ const InventoryRecording = () => {
         .from('suppliers')
         .select('*')
         .order('name');
-      
+
       setSuppliers(data || []);
     } catch (error) {
       console.error('Error fetching suppliers:', error);
@@ -71,9 +75,9 @@ const InventoryRecording = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const finalProductName = productName || (selectedProduct !== 'custom' ? selectedProduct : '');
-    
+
     if (!finalProductName.trim() || !quantity.trim()) {
       toast({
         title: "Error",
@@ -85,8 +89,9 @@ const InventoryRecording = () => {
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error('Not authenticated');
+      const userId = authUser.id;
 
       const quantityNum = parseInt(quantity);
       const unitCostNum = unitCost ? parseFloat(unitCost) : (costPrice ? parseFloat(costPrice) : 0);
@@ -96,7 +101,7 @@ const InventoryRecording = () => {
       const { data: existingProduct } = await supabase
         .from('user_products')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('product_name', finalProductName.trim())
         .single();
 
@@ -106,12 +111,12 @@ const InventoryRecording = () => {
           current_stock: (existingProduct.current_stock || 0) + quantityNum,
           updated_at: new Date().toISOString()
         };
-        
+
         // Only update selling price if provided
         if (sellingPrice && parseFloat(sellingPrice) > 0) {
           updateData.selling_price = parseFloat(sellingPrice);
         }
-        
+
         await supabase
           .from('user_products')
           .update(updateData)
@@ -119,16 +124,16 @@ const InventoryRecording = () => {
       } else {
         // Create new product - include selling price
         const insertData: any = {
-          user_id: user.id,
+          user_id: userId,
           product_name: finalProductName.trim(),
           current_stock: quantityNum
         };
-        
+
         // Only add selling price if provided
         if (sellingPrice && parseFloat(sellingPrice) > 0) {
           insertData.selling_price = parseFloat(sellingPrice);
         }
-        
+
         await supabase
           .from('user_products')
           .insert(insertData);
@@ -140,7 +145,7 @@ const InventoryRecording = () => {
         const { data: receipt, error: receiptError } = await supabase
           .from('inventory_receipts')
           .insert({
-            user_id: user.id,
+            user_id: userId,
             supplier_id: selectedSupplier,
             product_name: finalProductName.trim(),
             quantity_received: quantityNum,
@@ -161,7 +166,7 @@ const InventoryRecording = () => {
       await supabase
         .from('inventory_movements')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           receipt_id: receiptId,
           product_name: finalProductName.trim(),
           movement_type: 'received',
@@ -173,16 +178,16 @@ const InventoryRecording = () => {
       // Create expense record if requested
       if (recordAsExpense && totalCost > 0) {
         const supplierName = suppliers.find(s => s.id === selectedSupplier)?.name || 'Unknown Supplier';
-        
+
         // Generate expense number
         const { data: expenseNumberData } = await supabase.rpc('generate_expense_number', {
-          user_uuid: user.id
+          user_uuid: userId
         });
-        
+
         await supabase
           .from('expenses')
           .insert({
-            user_id: user.id,
+            user_id: userId,
             expense_number: expenseNumberData || 'EXP-001',
             expense_date: new Date().toISOString().split('T')[0],
             amount: totalCost,
@@ -196,10 +201,15 @@ const InventoryRecording = () => {
 
       toast({
         title: "🎉 Product Added Successfully!",
-        description: recordAsExpense 
+        description: recordAsExpense
           ? `Added ${quantity} ${finalProductName} to inventory and recorded as expense. Keep growing your business!`
           : `Added ${quantity} ${finalProductName} to inventory. Keep growing your business!`,
       });
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: inventoryOverviewQueryKey(userId) }),
+        queryClient.invalidateQueries({ queryKey: homeMetricsQueryKey(userId) })
+      ]);
 
       // Reset form
       setProductName("");
@@ -218,7 +228,7 @@ const InventoryRecording = () => {
       setCustomUnit("");
       setIsCustomUnit(false);
       setRecordAsExpense(false);
-      
+
     } catch (error) {
       console.error('Error recording inventory:', error);
       toast({
@@ -256,8 +266,8 @@ const InventoryRecording = () => {
               </SelectContent>
             </Select>
             {(selectedProduct === 'custom' || selectedProduct === '') && (
-              <Input 
-                placeholder="Type custom product name here..." 
+              <Input
+                placeholder="Type custom product name here..."
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
               />
@@ -297,7 +307,7 @@ const InventoryRecording = () => {
                 </SelectContent>
               </Select>
               {isCustomUnit && (
-                <Input 
+                <Input
                   placeholder="Enter your custom unit of measurement"
                   value={customUnit}
                   onChange={(e) => setCustomUnit(e.target.value)}
@@ -310,22 +320,22 @@ const InventoryRecording = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="cost-price">Cost Price (¢)</Label>
-              <Input 
-                id="cost-price" 
-                type="number" 
-                placeholder="0.00" 
-                step="0.01" 
+              <Input
+                id="cost-price"
+                type="number"
+                placeholder="0.00"
+                step="0.01"
                 value={costPrice}
                 onChange={(e) => setCostPrice(e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="selling-price">Selling Price (¢)</Label>
-              <Input 
-                id="selling-price" 
-                type="number" 
-                placeholder="0.00" 
-                step="0.01" 
+              <Input
+                id="selling-price"
+                type="number"
+                placeholder="0.00"
+                step="0.01"
                 value={sellingPrice}
                 onChange={(e) => setSellingPrice(e.target.value)}
               />
@@ -335,10 +345,10 @@ const InventoryRecording = () => {
           {/* Quantity */}
           <div className="space-y-2">
             <Label htmlFor="quantity">Initial Quantity</Label>
-            <Input 
-              id="quantity" 
-              type="number" 
-              placeholder="Enter quantity" 
+            <Input
+              id="quantity"
+              type="number"
+              placeholder="Enter quantity"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
             />
@@ -386,30 +396,30 @@ const InventoryRecording = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Input 
-                placeholder="Batch/Lot number" 
+              <Input
+                placeholder="Batch/Lot number"
                 value={batchNumber}
                 onChange={(e) => setBatchNumber(e.target.value)}
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input 
-                placeholder="Unit cost (¢)" 
-                type="number" 
+              <Input
+                placeholder="Unit cost (¢)"
+                type="number"
                 step="0.01"
                 value={unitCost}
                 onChange={(e) => setUnitCost(e.target.value)}
               />
-              <Input 
-                placeholder="Expiry date" 
+              <Input
+                placeholder="Expiry date"
                 type="date"
                 value={expiryDate}
                 onChange={(e) => setExpiryDate(e.target.value)}
               />
             </div>
-            <Textarea 
-              placeholder="Additional supplier notes..." 
-              rows={2} 
+            <Textarea
+              placeholder="Additional supplier notes..."
+              rows={2}
               value={supplierNotes}
               onChange={(e) => setSupplierNotes(e.target.value)}
             />
@@ -417,12 +427,12 @@ const InventoryRecording = () => {
 
           {/* Record as Expense Option */}
           <div className="flex items-center space-x-2 border-t pt-4">
-            <Checkbox 
+            <Checkbox
               id="record-as-expense"
               checked={recordAsExpense}
               onCheckedChange={(checked) => setRecordAsExpense(checked === true)}
             />
-            <Label 
+            <Label
               htmlFor="record-as-expense"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
@@ -436,8 +446,8 @@ const InventoryRecording = () => {
           )}
 
           {/* Submit Button */}
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             className="w-full flex items-center gap-2"
             disabled={loading}
           >

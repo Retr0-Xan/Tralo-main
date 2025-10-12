@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,6 +16,9 @@ import OrderStockDialog from "./OrderStockDialog";
 import ShareMessageGenerator from "@/components/ShareMessageGenerator";
 import StockConversionDialog from "./StockConversionDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useInventoryOverview, inventoryOverviewQueryKey } from "@/hooks/useInventoryOverview";
+import { useQueryClient } from "@tanstack/react-query";
+import { homeMetricsQueryKey } from "@/hooks/useHomeMetrics";
 
 interface InventoryItem {
   id: string;
@@ -40,18 +43,17 @@ interface StockMetrics {
 
 const InventoryDashboard = () => {
   const { user } = useAuth();
-  const [businessProfile, setBusinessProfile] = useState<any>(null);
-  
-  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
-  const [stockMetrics, setStockMetrics] = useState<StockMetrics>({
+  const queryClient = useQueryClient();
+  const { data, isLoading, isFetching, refetch } = useInventoryOverview();
+  const businessProfile = data?.businessProfile;
+  const inventoryData = data?.inventoryItems ?? [];
+  const stockMetrics = data?.stockMetrics ?? {
     totalItems: 0,
     totalValue: 0,
     lowStockItems: 0,
     outOfStockItems: 0,
     totalRevenue: 0
-  });
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  };
   const [recordingLoss, setRecordingLoss] = useState(false);
   const [lossProduct, setLossProduct] = useState("");
   const [lossQuantity, setLossQuantity] = useState("");
@@ -60,188 +62,11 @@ const InventoryDashboard = () => {
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchInventoryData();
-    fetchBusinessProfile();
-  }, [user]);
-
-  const fetchBusinessProfile = async () => {
-    if (!user) return;
-    
-    try {
-      const { data: profileData, error } = await supabase
-        .from('business_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error) throw error;
-      setBusinessProfile(profileData);
-    } catch (error) {
-      console.error('Error fetching business profile:', error);
-    }
-  };
-
-  const fetchInventoryData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get user's business profile
-      const { data: businessProfile } = await supabase
-        .from('business_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!businessProfile) return;
-
-      // Get user products
-      const { data: products } = await supabase
-        .from('user_products')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('product_name');
-
-      // Get inventory receipts to calculate costs
-      const { data: receipts } = await supabase
-        .from('inventory_receipts')
-        .select('product_name, unit_cost, quantity_received, total_cost')
-        .eq('user_id', user.id);
-
-      // Get inventory movements as a fallback for cost data
-      const { data: movements } = await supabase
-        .from('inventory_movements')
-        .select('product_name, quantity, unit_price, movement_type')
-        .eq('user_id', user.id)
-        .eq('movement_type', 'received');
-
-      // Get recent sales data
-      const { data: sales } = await supabase
-        .from('customer_purchases')
-        .select('product_name, amount, purchase_date')
-        .eq('business_id', businessProfile.id)
-        .gte('purchase_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
-
-      if (products) {
-        const processedInventory = products.map(product => {
-          const currentStock = Number(product.current_stock ?? 0);
-          const productName = (product.product_name || '').toLowerCase();
-
-          // Calculate average costs from receipts
-          const productReceipts = receipts?.filter(r => 
-            (r.product_name || '').toLowerCase() === productName
-          ) || [];
-
-          const totalReceived = productReceipts.reduce((sum, r) => 
-            sum + Number(r.quantity_received ?? 0),
-          0);
-          const totalCost = productReceipts.reduce((sum, r) => {
-            const receiptCost = r.total_cost ?? (Number(r.unit_cost ?? 0) * Number(r.quantity_received ?? 0));
-            return sum + Number(receiptCost ?? 0);
-          }, 0);
-
-          let avgCostPrice = totalReceived > 0 ? totalCost / totalReceived : 0;
-
-          if (avgCostPrice === 0) {
-            const productMovements = movements?.filter(m => 
-              (m.product_name || '').toLowerCase() === productName
-            ) || [];
-
-            const movementTotals = productMovements.reduce(
-              (acc, movement) => {
-                const qty = Math.abs(Number(movement.quantity ?? 0));
-                const unitPrice = Number(movement.unit_price ?? 0);
-                return {
-                  quantity: acc.quantity + qty,
-                  cost: acc.cost + qty * unitPrice,
-                };
-              },
-              { quantity: 0, cost: 0 }
-            );
-
-            if (movementTotals.quantity > 0 && movementTotals.cost > 0) {
-              avgCostPrice = movementTotals.cost / movementTotals.quantity;
-            }
-          }
-
-          if (avgCostPrice === 0 && product.selling_price) {
-            avgCostPrice = Number(product.selling_price);
-          }
-
-          // Calculate average selling price from sales
-          const productSales = sales?.filter(s => {
-            const saleName = (s.product_name || '').toLowerCase();
-            return saleName.includes(productName) || productName.includes(saleName);
-          }) || [];
-          
-          const totalSalesAmount = productSales.reduce((sum, s) => sum + Number(s.amount), 0);
-          const avgSellingPrice = productSales.length > 0 ? totalSalesAmount / productSales.length : 0;
-
-          // Calculate current stock value based on cost price from inventory receipts
-          const currentValue = currentStock * (avgCostPrice || 0);
-
-          // Determine status
-          let status: 'healthy' | 'low' | 'out' | 'slow';
-          let recommendation: string;
-
-          if (currentStock === 0) {
-            status = 'out';
-            recommendation = `🚨 Out of stock - reorder ${product.product_name} immediately`;
-          } else if (currentStock < 5) {
-            status = 'low';
-            recommendation = `⚠️ Low stock - only ${currentStock} ${product.product_name} remaining`;
-          } else if (productSales.length === 0 && currentStock > 20) {
-            status = 'slow';
-            recommendation = `📊 ${product.product_name} moving slowly - consider promotion`;
-          } else {
-            status = 'healthy';
-            recommendation = `✅ ${product.product_name} stock levels are healthy`;
-          }
-
-          return {
-            id: product.id,
-            product_name: product.product_name,
-            current_stock: currentStock,
-            last_sale_date: product.last_sale_date,
-            total_sales_this_month: Number(product.total_sales_this_month ?? 0),
-            avg_selling_price: avgSellingPrice,
-            avg_cost_price: avgCostPrice,
-            total_value: currentValue,
-            status,
-            recommendation
-          } as InventoryItem;
-        });
-
-        setInventoryData(processedInventory);
-
-        // Calculate metrics
-        const metrics: StockMetrics = {
-          totalItems: processedInventory.reduce((sum, item) => sum + item.current_stock, 0),
-          totalValue: processedInventory.reduce((sum, item) => sum + item.total_value, 0),
-          lowStockItems: processedInventory.filter(item => item.status === 'low').length,
-          outOfStockItems: processedInventory.filter(item => item.status === 'out').length,
-          totalRevenue: sales?.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0
-        };
-
-        setStockMetrics(metrics);
-      }
-    } catch (error) {
-      console.error('Error fetching inventory data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load inventory data",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
   const refreshData = async () => {
-    setRefreshing(true);
-    await fetchInventoryData();
+    if (user?.id) {
+      await queryClient.invalidateQueries({ queryKey: homeMetricsQueryKey(user.id) });
+    }
+    await refetch();
     toast({
       title: "Data refreshed",
       description: "Inventory data has been updated",
@@ -260,8 +85,8 @@ const InventoryDashboard = () => {
 
     setRecordingLoss(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
 
       const lossQty = parseInt(lossQuantity);
 
@@ -275,21 +100,21 @@ const InventoryDashboard = () => {
 
       if (product) {
         const newStock = Math.max(0, product.current_stock - lossQty);
-        
+
         await supabase
           .from('user_products')
           .update({
             current_stock: newStock,
             updated_at: new Date().toISOString()
           })
-          .eq('user_id', user.id)
+          .eq('user_id', authUser.id)
           .eq('product_name', lossProduct);
 
         // Record inventory movement
         await supabase
           .from('inventory_movements')
           .insert({
-            user_id: user.id,
+            user_id: authUser.id,
             product_name: lossProduct,
             movement_type: lossReason === 'damaged' ? 'damaged' : lossReason === 'expired' ? 'expired' : 'adjusted',
             quantity: -lossQty,
@@ -306,7 +131,12 @@ const InventoryDashboard = () => {
         setLossQuantity("");
         setLossReason("");
         setLossNotes("");
-        await fetchInventoryData();
+        if (authUser.id) {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: inventoryOverviewQueryKey(authUser.id) }),
+            queryClient.invalidateQueries({ queryKey: homeMetricsQueryKey(authUser.id) })
+          ]);
+        }
       }
     } catch (error) {
       console.error('Error recording loss:', error);
@@ -328,10 +158,10 @@ const InventoryDashboard = () => {
     const variants = {
       healthy: "default",
       low: "destructive",
-      out: "destructive", 
+      out: "destructive",
       slow: "secondary"
     } as const;
-    
+
     const labels = {
       healthy: "Healthy Stock",
       low: "Low Stock",
@@ -346,7 +176,7 @@ const InventoryDashboard = () => {
     return `¢${amount.toFixed(2)}`;
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -368,21 +198,21 @@ const InventoryDashboard = () => {
         </div>
         <div className="flex gap-2">
           <StockConversionDialog onSuccess={refreshData} />
-          <Button 
-            variant="default" 
-            size="sm" 
+          <Button
+            variant="default"
+            size="sm"
             onClick={handleOrderStock}
           >
             <ShoppingCart className="w-4 h-4 mr-2" />
             Order Stock
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={refreshData}
-            disabled={refreshing}
+            disabled={isFetching}
           >
-            {refreshing ? (
+            {isFetching ? (
               <Loader2 className="w-4 h-4 animate-spin mr-2" />
             ) : (
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -405,7 +235,7 @@ const InventoryDashboard = () => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
@@ -587,8 +417,8 @@ const InventoryDashboard = () => {
                   ))}
                 </SelectContent>
               </Select>
-              <Input 
-                placeholder="Quantity lost" 
+              <Input
+                placeholder="Quantity lost"
                 type="number"
                 value={lossQuantity}
                 onChange={(e) => setLossQuantity(e.target.value)}
@@ -608,12 +438,12 @@ const InventoryDashboard = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Textarea 
-              placeholder="Additional notes about the loss..." 
+            <Textarea
+              placeholder="Additional notes about the loss..."
               value={lossNotes}
               onChange={(e) => setLossNotes(e.target.value)}
             />
-            <Button 
+            <Button
               onClick={handleRecordLoss}
               disabled={recordingLoss || !lossProduct || !lossQuantity || !lossReason}
               className="flex items-center gap-2"
