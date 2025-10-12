@@ -227,7 +227,7 @@ const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="-mt-12 flex justify-center">
-            <TraloLogo className="h-[13.5rem] w-auto" />
+            <TraloLogo className="h-[5.7rem] w-auto" />
           </div>
           <p className="text-muted-foreground text-sm mb-4 mt-0">
             Trade today, the future of trade tomorrow
