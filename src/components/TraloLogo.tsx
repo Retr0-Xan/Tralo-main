@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
-import logoWordmark from "@/assets/tralo-new-zoom-removebg-preview.png";
+import logoLight from "@/assets/tralo-new-removebg-preview.png";
+import logoDark from "@/assets/tralo-logo-dark-mode-removebg-preview.png";
 
 interface TraloLogoProps {
   className?: string;
@@ -7,11 +8,18 @@ interface TraloLogoProps {
 
 const TraloLogo = ({ className }: TraloLogoProps) => {
   return (
-    <img
-      src={logoWordmark}
-      alt="Tralo"
-      className={cn("h-12 w-auto object-contain", className)}
-    />
+    <div className="inline-flex items-center">
+      <img
+        src={logoLight}
+        alt="Tralo"
+        className={cn("h-12 w-auto object-contain dark:hidden", className)}
+      />
+      <img
+        src={logoDark}
+        alt="Tralo"
+        className={cn("hidden h-12 w-auto object-contain dark:block", className)}
+      />
+    </div>
   );
 };
 
