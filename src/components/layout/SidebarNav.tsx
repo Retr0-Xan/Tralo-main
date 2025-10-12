@@ -78,11 +78,9 @@ export const SidebarNav = ({ isMobileOpen, onClose }: SidebarNavProps) => {
     const content = (
         <Fragment>
             <div className="flex flex-col gap-6">
-                <div className="flex items-center gap-3 px-2">
-                    <TraloLogo />
-                    <div className="leading-tight">
-                        <p className="text-base font-semibold text-foreground">Tralo ERP</p>
-                        <p className="text-xs text-muted-foreground">Unified business command center</p>
+                <div className="px-2">
+                    <div className="flex h-16 items-center justify-center overflow-hidden">
+                        <TraloLogo className="h-full w-full transform scale-[0.875] object-contain" />
                     </div>
                 </div>
 
