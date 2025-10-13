@@ -230,7 +230,7 @@ const Auth = () => {
             <TraloLogo className="h-[5.7rem] w-auto" />
           </div>
           <p className="text-muted-foreground text-sm mb-4 mt-0">
-            Trade today, the future of trade tomorrow
+            Proof today, the future of trade tomorrow
           </p>
           <CardTitle>{isSignUp ? "Create Account" : "Welcome Back"}</CardTitle>
           <CardDescription>
