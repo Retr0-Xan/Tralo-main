@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
+import { fetchSalesAnalytics, sumEffectiveAmount } from "@/lib/sales-analytics";
 
 interface MarketTip {
   title: string;
@@ -22,17 +23,9 @@ export const useMarketTips = () => {
     try {
       const tips: MarketTip[] = [];
       const today = new Date();
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
       const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-      // Get user's business profile
-      const { data: businessProfile } = await supabase
-        .from('business_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!businessProfile) return [];
 
       // Get user's products and stock levels
       const { data: products } = await supabase
@@ -40,34 +33,18 @@ export const useMarketTips = () => {
         .select('*')
         .eq('user_id', user.id);
 
-      // Get recent sales
-      const { data: recentSalesData } = await supabase
-        .from('customer_purchases')
-        .select('*')
-        .eq('business_id', businessProfile.id)
-        .gte('purchase_date', thirtyDaysAgo.toISOString());
+      const salesData = await fetchSalesAnalytics(user.id, {
+        startDate: thirtyDaysAgo.toISOString(),
+        includeReversed: false
+      });
 
-      // Get today's sales
-      const { data: todaySalesData } = await supabase
-        .from('customer_purchases')
-        .select('amount')
-        .eq('business_id', businessProfile.id)
-        .gte('purchase_date', today.toISOString().split('T')[0]);
+      const todaySales = salesData.filter((sale) => new Date(sale.purchase_date) >= startOfToday);
+      const weekSales = salesData.filter((sale) => new Date(sale.purchase_date) >= sevenDaysAgo);
+      const monthSales = salesData;
 
-      // Get this week's sales
-      const { data: weekSalesData } = await supabase
-        .from('customer_purchases')
-        .select('amount')
-        .eq('business_id', businessProfile.id)
-        .gte('purchase_date', sevenDaysAgo.toISOString());
-
-      const recentSales = (recentSalesData || []).filter((sale) => Number(sale.amount) > 0 && sale.payment_method !== 'reversed');
-      const todaySales = (todaySalesData || []).filter((sale) => Number(sale.amount) > 0);
-      const weekSales = (weekSalesData || []).filter((sale) => Number(sale.amount) > 0);
-
-      const todayTotal = todaySales.reduce((sum, sale) => sum + Number(sale.amount), 0);
-      const weekTotal = weekSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
-      const monthTotal = recentSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
+      const todayTotal = sumEffectiveAmount(todaySales);
+      const weekTotal = sumEffectiveAmount(weekSales);
+      const monthTotal = sumEffectiveAmount(monthSales);
 
       // 1. Daily Performance Tips
       if (todayTotal === 0) {
@@ -109,11 +86,11 @@ export const useMarketTips = () => {
       }
 
       // 3. Sales Trends and Opportunities
-      if (recentSales.length > 0) {
+      if (monthSales.length > 0) {
         // Find best-selling product
-        const productSales = recentSales.reduce((acc, sale) => {
+        const productSales = monthSales.reduce((acc, sale) => {
           const product = sale.product_name;
-          acc[product] = (acc[product] || 0) + Number(sale.amount);
+          acc[product] = (acc[product] || 0) + Number(sale.effective_amount ?? sale.amount ?? 0);
           return acc;
         }, {} as Record<string, number>);
 

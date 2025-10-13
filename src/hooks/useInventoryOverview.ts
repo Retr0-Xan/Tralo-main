@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
+import { fetchSalesAnalytics } from "@/lib/sales-analytics";
 
 export interface InventoryOverviewItem {
     id: string;
@@ -52,7 +53,9 @@ const buildInventoryOverview = async (userId: string): Promise<InventoryOverview
         };
     }
 
-    const [productsResp, receiptsResp, movementsResp, salesResp] = await Promise.all([
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [productsResp, receiptsResp, movementsResp, salesData] = await Promise.all([
         supabase.from("user_products").select("*").eq("user_id", userId).order("product_name"),
         supabase
             .from("inventory_receipts")
@@ -63,17 +66,16 @@ const buildInventoryOverview = async (userId: string): Promise<InventoryOverview
             .select("product_name, quantity, unit_price, movement_type")
             .eq("user_id", userId)
             .eq("movement_type", "received"),
-        supabase
-            .from("customer_purchases")
-            .select("product_name, amount, purchase_date")
-            .eq("business_id", businessProfile.id)
-            .gte("purchase_date", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+        fetchSalesAnalytics(userId, {
+            startDate: thirtyDaysAgo.toISOString(),
+            includeReversed: false,
+        }),
     ]);
 
     const products = productsResp.data || [];
     const receipts = receiptsResp.data || [];
     const movements = movementsResp.data || [];
-    const sales = salesResp.data || [];
+    const sales = salesData;
 
     const inventoryItems: InventoryOverviewItem[] = products.map((product) => {
         const currentStock = Number(product.current_stock ?? 0);
@@ -121,14 +123,18 @@ const buildInventoryOverview = async (userId: string): Promise<InventoryOverview
             avgCostPrice = Number(product.selling_price);
         }
 
-        const productSales = sales
-            .filter((s) => Number(s.amount) > 0)
-            .filter((s) => {
-                const saleName = (s.product_name || "").toLowerCase();
-                return saleName.includes(productName) || productName.includes(saleName);
-            });
+        const productSales = sales.filter((s) => {
+            const saleName = (s.product_name || "").toLowerCase();
+            return (
+                (saleName.includes(productName) || productName.includes(saleName)) &&
+                Number(s.effective_amount ?? s.amount ?? 0) > 0
+            );
+        });
 
-        const totalSalesAmount = productSales.reduce((sum, s) => sum + Number(s.amount), 0);
+        const totalSalesAmount = productSales.reduce(
+            (sum, s) => sum + Number(s.effective_amount ?? s.amount ?? 0),
+            0
+        );
         const avgSellingPrice = productSales.length > 0 ? totalSalesAmount / productSales.length : 0;
 
         const currentValue = currentStock * (avgCostPrice || 0);
@@ -169,9 +175,10 @@ const buildInventoryOverview = async (userId: string): Promise<InventoryOverview
         totalValue: inventoryItems.reduce((sum, item) => sum + item.total_value, 0),
         lowStockItems: inventoryItems.filter((item) => item.status === "low").length,
         outOfStockItems: inventoryItems.filter((item) => item.status === "out").length,
-        totalRevenue: sales
-            .filter((sale) => Number(sale.amount) > 0)
-            .reduce((sum, sale) => sum + Number(sale.amount), 0),
+        totalRevenue: sales.reduce(
+            (sum, sale) => sum + Number(sale.effective_amount ?? sale.amount ?? 0),
+            0
+        ),
     };
 
     return {

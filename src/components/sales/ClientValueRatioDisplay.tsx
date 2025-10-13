@@ -6,6 +6,7 @@ import { TrendingUp, Users, DollarSign, X, Maximize2, Minimize2 } from "lucide-r
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
+import { fetchSalesAnalytics } from "@/lib/sales-analytics";
 
 const ClientValueRatioDisplay = () => {
   const { user } = useAuth();
@@ -23,28 +24,18 @@ const ClientValueRatioDisplay = () => {
 
     try {
       setLoading(true);
-      const { data: businessProfile } = await supabase
-        .from('business_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const sales = await fetchSalesAnalytics(user.id, {
+        startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        includeReversed: false
+      });
 
-      if (!businessProfile) {
-        setLoading(false);
-        return;
-      }
-
-      const { data: sales } = await supabase
-        .from('customer_purchases')
-        .select('customer_phone, amount')
-        .eq('business_id', businessProfile.id)
-        .gte('purchase_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
-
-      if (sales) {
-        const filteredSales = sales.filter((sale) => Number(sale.amount) > 0);
-
+      if (sales.length > 0) {
+        const filteredSales = sales.filter((sale) => Number(sale.effective_amount ?? sale.amount ?? 0) > 0);
         const uniqueCustomers = filteredSales.length;
-        const totalValue = filteredSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
+        const totalValue = filteredSales.reduce(
+          (sum, sale) => sum + Number(sale.effective_amount ?? sale.amount ?? 0),
+          0
+        );
         const ratio = uniqueCustomers > 0 ? totalValue / uniqueCustomers : 0;
 
         setRatioData({

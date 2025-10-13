@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
+import { fetchSalesAnalytics, sumEffectiveAmount } from "@/lib/sales-analytics";
 
 interface DailyProgress {
   date: string;
@@ -37,38 +38,19 @@ export const useDailyProgress = (goalId?: string) => {
         return;
       }
 
-      // Get user's business profile
-      const { data: businessProfile } = await supabase
-        .from('business_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!businessProfile) {
-        setLoading(false);
-        return;
-      }
-
       // Calculate daily progress based on goal type
       const startDate = new Date(goal.period_start);
       const endDate = new Date(goal.period_end);
       const today = new Date();
 
       // Get all sales within the goal period
-      const { data: sales } = await supabase
-        .from('customer_purchases')
-        .select('*')
-        .eq('business_id', businessProfile.id)
-        .gte('purchase_date', startDate.toISOString())
-        .lte('purchase_date', endDate.toISOString())
-        .order('purchase_date', { ascending: true });
+      const sales = await fetchSalesAnalytics(user.id, {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        includeReversed: false
+      });
 
-      if (!sales) {
-        setLoading(false);
-        return;
-      }
-
-      const validSales = sales.filter((sale) => Number(sale.amount) > 0 && sale.payment_method !== 'reversed');
+      const validSales = sales.filter((sale) => Number(sale.effective_amount ?? sale.amount ?? 0) > 0);
 
       // Calculate daily targets based on goal type
       let dailyTarget = 0;
@@ -95,7 +77,7 @@ export const useDailyProgress = (goalId?: string) => {
         if (!acc[saleDate]) {
           acc[saleDate] = 0;
         }
-        acc[saleDate] += Number(sale.amount);
+        acc[saleDate] += Number(sale.effective_amount ?? sale.amount ?? 0);
         return acc;
       }, {} as Record<string, number>);
 

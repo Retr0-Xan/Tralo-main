@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
+import { fetchSalesAnalytics } from "@/lib/sales-analytics";
 
 interface CommodityData {
   name: string;
@@ -38,18 +39,6 @@ export const useTradeIndexData = () => {
     }
 
     try {
-      // Get user's business profile
-      const { data: businessProfile } = await supabase
-        .from('business_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!businessProfile) {
-        setLoading(false);
-        return;
-      }
-
       // Get inventory data
       const { data: inventory } = await supabase
         .from('inventory_receipts')
@@ -57,10 +46,7 @@ export const useTradeIndexData = () => {
         .eq('user_id', user.id);
 
       // Get sales data
-      const { data: sales } = await supabase
-        .from('customer_purchases')
-        .select('product_name, amount, purchase_date')
-        .eq('business_id', businessProfile.id);
+      const sales = await fetchSalesAnalytics(user.id, { includeReversed: false });
 
       // Get current stock levels
       const { data: products } = await supabase
@@ -94,19 +80,17 @@ export const useTradeIndexData = () => {
       });
 
       // Process sales data
-      const filteredSales = (sales || []).filter((sale) => Number(sale.amount) > 0);
-
-      filteredSales.forEach(sale => {
+      sales.forEach(sale => {
         const name = sale.product_name.toLowerCase();
         if (commodityMap.has(name)) {
           const commodity = commodityMap.get(name)!;
-          commodity.totalSales += Number(sale.amount);
+          const revenue = Number(sale.effective_amount ?? sale.amount ?? 0);
+          commodity.totalSales += revenue;
 
-          // Check if sale is this month
           const saleDate = new Date(sale.purchase_date);
           const now = new Date();
           if (saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear()) {
-            commodity.salesThisMonth += Number(sale.amount);
+            commodity.salesThisMonth += revenue;
           }
         }
       });

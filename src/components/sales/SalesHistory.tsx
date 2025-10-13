@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
+import { fetchSalesAnalytics } from "@/lib/sales-analytics";
 import { Search } from "lucide-react";
 
 interface SaleHistoryRecord {
@@ -65,34 +66,18 @@ const SalesHistory = () => {
         try {
             setLoading(true);
 
-            const { data: profile, error: profileError } = await supabase
-                .from("business_profiles")
-                .select("id")
-                .eq("user_id", user.id)
-                .maybeSingle();
+            const purchases = await fetchSalesAnalytics(user.id, {
+                includeReversed: true,
+                limit: 250,
+            });
 
-            if (profileError) {
-                throw profileError;
-            }
-
-            if (!profile) {
+            if (purchases.length === 0) {
                 setRecords([]);
                 setLoading(false);
                 return;
             }
 
-            const { data: purchases, error: purchasesError } = await supabase
-                .from("customer_purchases")
-                .select("*")
-                .eq("business_id", profile.id)
-                .order("purchase_date", { ascending: false })
-                .limit(250);
-
-            if (purchasesError) {
-                throw purchasesError;
-            }
-
-            const saleIds = (purchases ?? []).map((purchase) => purchase.id);
+            const saleIds = purchases.map((purchase) => purchase.sale_id);
 
             const reversalResponse = saleIds.length
                 ? await supabase
@@ -109,18 +94,19 @@ const SalesHistory = () => {
                 (reversalResponse.data ?? []).map((reversal) => [reversal.original_sale_id, reversal])
             );
 
-            const mapped: SaleHistoryRecord[] = (purchases ?? []).map((purchase) => {
-                const reversal = reversalMap.get(purchase.id);
-                const status: SaleHistoryRecord["status"] = reversal
+            const mapped: SaleHistoryRecord[] = purchases.map((purchase) => {
+                const reversal = reversalMap.get(purchase.sale_id);
+                const isReversed = purchase.is_reversed || Boolean(reversal);
+                const status: SaleHistoryRecord["status"] = isReversed
                     ? "reverted"
                     : purchase.payment_method === "credit"
                         ? "credit"
                         : "completed";
 
                 return {
-                    id: purchase.id,
+                    id: purchase.sale_id,
                     productName: purchase.product_name,
-                    amount: Number(purchase.amount) || 0,
+                    amount: Number(purchase.effective_amount ?? purchase.amount ?? 0) || 0,
                     paymentMethod: purchase.payment_method || "cash",
                     purchaseDate: purchase.purchase_date,
                     customer: purchase.customer_phone || "Walk-in Customer",

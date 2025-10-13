@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToSalesDataUpdates } from '@/lib/sales-events';
+import { fetchSalesAnalytics, sumEffectiveAmount } from '@/lib/sales-analytics';
 
 interface SummaryData {
   revenue: string;
@@ -39,24 +40,11 @@ export const useSalesSummaryData = () => {
         };
       }
 
-      // Get user's business profile
-      const { data: businessProfile } = await supabase
-        .from('business_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!businessProfile) {
-        throw new Error('Business profile not found');
-      }
-
-      // Fetch sales data from customer_purchases
-      const { data: sales } = await supabase
-        .from('customer_purchases')
-        .select('amount, payment_method')
-        .eq('business_id', businessProfile.id)
-        .gte('purchase_date', startDate.toISOString())
-        .lte('purchase_date', endDate.toISOString());
+      const sales = await fetchSalesAnalytics(user.id, {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        includeReversed: false
+      });
 
       // Fetch expenses
       const { data: expenses } = await supabase
@@ -75,9 +63,9 @@ export const useSalesSummaryData = () => {
         .lte('received_date', endDate.toISOString());
 
       // Calculate totals
-      const validSales = (sales || []).filter((sale) => Number(sale.amount) > 0 && sale.payment_method !== 'reversed');
+      const validSales = sales.filter((sale) => Number(sale.effective_amount ?? sale.amount ?? 0) > 0);
 
-      const totalRevenue = validSales.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
+      const totalRevenue = sumEffectiveAmount(validSales);
 
       console.log('=== Sales Summary Calculation Debug ===');
       console.log('Period:', startDate.toISOString(), 'to', endDate.toISOString());
@@ -85,19 +73,17 @@ export const useSalesSummaryData = () => {
       console.log('Sales count:', validSales.length);
 
       // Separate credit and cash sales with proper partial payment tracking
-      const fullCreditSales = validSales.filter(sale => sale.payment_method === 'credit').reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
+      const fullCreditSales = validSales
+        .filter((sale) => sale.payment_method === 'credit')
+        .reduce((sum, sale) => sum + Number(sale.outstanding_credit_amount ?? sale.effective_amount ?? sale.amount ?? 0), 0);
 
-      // Get partial payment outstanding amounts from customer_sales table
-      const { data: customerSales } = await supabase
-        .from('customer_sales')
-        .select('total_amount, payment_method')
-        .eq('user_id', user.id)
-        .gte('sale_date', startDate.toISOString())
-        .lte('sale_date', endDate.toISOString())
-        .eq('payment_method', 'partial');
-
-      // Calculate outstanding from partial payments (this would need more complex logic in real implementation)
-      const partialPaymentOutstanding = customerSales?.reduce((sum, sale) => sum + (Number(sale.total_amount) * 0.5), 0) || 0; // Simplified - should track actual outstanding
+      const partialPaymentOutstanding = validSales.reduce((sum, sale) => {
+        if (sale.has_partial_payment) {
+          const saleAmount = Number(sale.effective_amount ?? sale.amount ?? 0);
+          return sum + saleAmount * 0.5;
+        }
+        return sum;
+      }, 0);
 
       const totalCreditOutstanding = fullCreditSales + partialPaymentOutstanding;
 

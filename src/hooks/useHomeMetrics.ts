@@ -17,24 +17,6 @@ interface HomeMetrics extends HomeMetricsResult {
 }
 
 const fetchHomeMetrics = async (userId: string): Promise<HomeMetricsResult> => {
-  const { data: businessProfile, error: businessProfileError } = await supabase
-    .from("business_profiles")
-    .select("id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (businessProfileError) {
-    throw businessProfileError;
-  }
-
-  if (!businessProfile) {
-    return {
-      todaysSales: 0,
-      monthlyGoodsTraded: 0,
-      currentStockValue: 0,
-    };
-  }
-
   const today = new Date();
   const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
@@ -43,15 +25,17 @@ const fetchHomeMetrics = async (userId: string): Promise<HomeMetricsResult> => {
 
   const [todaysSalesResult, monthlySalesResult, productsResult, receiptsResult, movementsResult] = await Promise.all([
     supabase
-      .from("customer_purchases")
-      .select("amount")
-      .eq("business_id", businessProfile.id)
+      .from("sales_analytics")
+      .select("effective_amount")
+      .eq("user_id", userId)
+      .eq("is_reversed", false)
       .gte("purchase_date", startOfDay.toISOString())
       .lt("purchase_date", endOfDay.toISOString()),
     supabase
-      .from("customer_purchases")
-      .select("amount")
-      .eq("business_id", businessProfile.id)
+      .from("sales_analytics")
+      .select("effective_amount")
+      .eq("user_id", userId)
+      .eq("is_reversed", false)
       .gte("purchase_date", startOfMonth.toISOString())
       .lt("purchase_date", startOfNextMonth.toISOString()),
     supabase
@@ -91,11 +75,11 @@ const fetchHomeMetrics = async (userId: string): Promise<HomeMetricsResult> => {
   }
 
   const todaysSales = (todaysSalesResult.data ?? []).reduce((sum, sale) => {
-    const amount = Number(sale.amount);
+    const amount = Number((sale as { effective_amount: number }).effective_amount ?? 0);
     return amount > 0 ? sum + amount : sum;
   }, 0);
   const monthlyGoodsTraded = (monthlySalesResult.data ?? []).reduce((sum, sale) => {
-    const amount = Number(sale.amount);
+    const amount = Number((sale as { effective_amount: number }).effective_amount ?? 0);
     return amount > 0 ? sum + amount : sum;
   }, 0);
 

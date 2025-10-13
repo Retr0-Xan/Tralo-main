@@ -1122,7 +1122,30 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      sales_analytics: {
+        Row: {
+          amount: number
+          business_id: string
+          customer_payment_method: string | null
+          customer_phone: string
+          customer_total_amount: number | null
+          customer_total_quantity: number | null
+          effective_amount: number
+          effective_quantity: number
+          has_partial_payment: boolean
+          is_credit_sale: boolean
+          is_reversed: boolean
+          outstanding_credit_amount: number
+          payment_method: string | null
+          product_name: string
+          purchase_date: string
+          quantity: number
+          sale_id: string
+          unit_price: number
+          user_id: string
+        }
+        Relationships: []
+      }
     }
     Functions: {
       calculate_trust_score: {

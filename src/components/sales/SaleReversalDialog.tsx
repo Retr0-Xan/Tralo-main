@@ -11,14 +11,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { dispatchSalesDataUpdated } from "@/lib/sales-events";
+import { fetchSalesAnalytics } from "@/lib/sales-analytics";
 
 interface Sale {
   id: string;
   product_name: string;
   amount: number;
+  effective_amount: number;
+  quantity: number;
+  effective_quantity: number;
   customer_phone: string;
   payment_method: string;
   purchase_date: string;
+  is_reversed: boolean;
 }
 
 const SaleReversalDialog = () => {
@@ -35,40 +40,29 @@ const SaleReversalDialog = () => {
 
     setFetchingData(true);
     try {
-      // Get business profile first
-      const { data: profile, error: profileError } = await supabase
-        .from('business_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (profileError || !profile) {
-        throw new Error('Business profile not found');
-      }
-
-      // Get recent sales from last 30 days
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const { data: salesData, error: salesError } = await supabase
-        .from('customer_purchases')
-        .select('*')
-        .eq('business_id', profile.id)
-        .gte('purchase_date', thirtyDaysAgo.toISOString())
-        .order('purchase_date', { ascending: false })
-        .limit(50);
+      const analytics = await fetchSalesAnalytics(user.id, {
+        startDate: thirtyDaysAgo.toISOString(),
+        includeReversed: false,
+        limit: 100,
+      });
 
-      if (salesError) throw salesError;
-
-      const { data: reversalRecords, error: reversalsError } = await supabase
-        .from('sale_reversals')
-        .select('original_sale_id')
-        .eq('user_id', user.id);
-
-      if (reversalsError) throw reversalsError;
-
-      const reversedIds = new Set((reversalRecords || []).map(record => record.original_sale_id));
-      const filteredSales = (salesData || []).filter(sale => Number(sale.amount) > 0 && !reversedIds.has(sale.id));
+      const filteredSales: Sale[] = analytics
+        .filter((sale) => Number(sale.effective_amount ?? sale.amount ?? 0) > 0 && !sale.is_reversed)
+        .map((sale) => ({
+          id: sale.sale_id,
+          product_name: sale.product_name,
+          amount: Number(sale.amount ?? 0),
+          effective_amount: Number(sale.effective_amount ?? sale.amount ?? 0),
+          quantity: Number(sale.quantity ?? 1),
+          effective_quantity: Number(sale.effective_quantity ?? sale.quantity ?? 1),
+          customer_phone: sale.customer_phone ?? "walk-in",
+          payment_method: sale.payment_method ?? "cash",
+          purchase_date: sale.purchase_date,
+          is_reversed: sale.is_reversed,
+        }));
 
       setSales(filteredSales);
     } catch (error) {
@@ -131,7 +125,12 @@ const SaleReversalDialog = () => {
         for (const movement of saleMovements) {
           const quantityValue = Number(movement.quantity ?? 0);
           const quantityToRestore = quantityValue > 0 ? quantityValue : 1;
-          const sellingPrice = Number(movement.selling_price ?? movement.unit_price ?? selectedSale.amount);
+          const sellingPrice = Number(
+            movement.selling_price ??
+            movement.unit_price ??
+            selectedSale.effective_amount ??
+            selectedSale.amount
+          );
 
           const { error: inventoryError } = await supabase
             .from('inventory_movements')
@@ -181,11 +180,11 @@ const SaleReversalDialog = () => {
       }
 
       if (totalQuantityReturned === 0) {
-        totalQuantityReturned = 1;
+        totalQuantityReturned = Number(selectedSale.effective_quantity ?? selectedSale.quantity ?? 1);
       }
 
       if (totalSaleAmount === 0) {
-        totalSaleAmount = Number(selectedSale.amount);
+        totalSaleAmount = Number(selectedSale.effective_amount ?? selectedSale.amount);
       }
 
       // Mark original sale as reversed by zeroing the amount and tagging the payment method
@@ -242,13 +241,16 @@ const SaleReversalDialog = () => {
           {
             item_name: selectedSale.product_name,
             quantity: totalQuantityReturned,
-            unit_price: totalQuantityReturned > 0 ? Number(totalSaleAmount) / totalQuantityReturned : Number(selectedSale.amount),
+            unit_price:
+              totalQuantityReturned > 0
+                ? Number(totalSaleAmount) / totalQuantityReturned
+                : Number(selectedSale.effective_amount ?? selectedSale.amount),
             total_price: Number(totalSaleAmount)
           }
         ],
         notes: trimmedReason,
         original_sale_id: selectedSale.id,
-        original_amount: Number(selectedSale.amount),
+        original_amount: Number(selectedSale.effective_amount ?? selectedSale.amount),
         payment_method: selectedSale.payment_method,
         customer: {
           phone: selectedSale.customer_phone
@@ -351,7 +353,7 @@ const SaleReversalDialog = () => {
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{sale.product_name}</span>
-                              <Badge variant="secondary">¢{sale.amount}</Badge>
+                              <Badge variant="secondary">¢{sale.effective_amount || sale.amount}</Badge>
                             </div>
                             <div className="text-sm text-muted-foreground">
                               Customer: {sale.customer_phone} • {sale.payment_method}
@@ -391,8 +393,12 @@ const SaleReversalDialog = () => {
                       <p className="text-lg">{selectedSale.product_name}</p>
                     </div>
                     <div>
+                      <Label className="text-sm font-medium">Quantity</Label>
+                      <p className="text-lg">{selectedSale.effective_quantity || selectedSale.quantity}</p>
+                    </div>
+                    <div>
                       <Label className="text-sm font-medium">Amount</Label>
-                      <p className="text-lg font-bold text-green-600">¢{selectedSale.amount}</p>
+                      <p className="text-lg font-bold text-green-600">¢{selectedSale.effective_amount || selectedSale.amount}</p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium">Customer</Label>

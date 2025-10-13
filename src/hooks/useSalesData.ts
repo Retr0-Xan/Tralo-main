@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
+import {
+  fetchSalesAnalytics,
+  sumEffectiveAmount,
+  sumEffectiveQuantity
+} from "@/lib/sales-analytics";
 
 interface SalesMetrics {
   todaySales: string;
@@ -76,53 +81,52 @@ export const useSalesData = () => {
     try {
       setLoading(true);
 
-      // Get user's business profile
-      const { data: businessProfile } = await supabase
-        .from('business_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!businessProfile) return;
-
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const lastWeekStart = new Date(weekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
       const lastWeekEnd = new Date(weekStart.getTime() - 1);
 
-      // Fetch all sales data
-      const { data: rawSales } = await supabase
-        .from('customer_purchases')
-        .select('*')
-        .eq('business_id', businessProfile.id)
-        .order('purchase_date', { ascending: false });
+      const allSales = await fetchSalesAnalytics(user.id, { includeReversed: false });
 
-      if (!rawSales) return;
-
-      const allSales = rawSales.filter((sale) => Number(sale.amount) > 0 && sale.payment_method !== 'reversed');
+      if (allSales.length === 0) {
+        setSalesMetrics({
+          todaySales: "0.00",
+          weekSales: "0.00",
+          monthSales: "0.00",
+          itemsSoldToday: 0,
+          bestSellerWeek: { product: "No sales", quantity: 0 },
+          slowSellerWeek: { product: "No sales", quantity: 0 }
+        });
+        setCashFlow({ totalCash: "0.00", pending: "0.00", debtCleared: "0.00" });
+        setSalesBreakdown([]);
+        setSalesTrends([]);
+        return;
+      }
 
       // Calculate today's sales
-      const todaySales = allSales.filter(sale =>
+      const todaySales = allSales.filter((sale) =>
         new Date(sale.purchase_date) >= todayStart
       );
-      const todayRevenue = todaySales.reduce((sum, sale) => sum + Number(sale.amount), 0);
+      const todayRevenue = sumEffectiveAmount(todaySales);
+      const todayItemsSold = sumEffectiveQuantity(todaySales);
 
       // Calculate week's sales
-      const weekSales = allSales.filter(sale =>
+      const weekSales = allSales.filter((sale) =>
         new Date(sale.purchase_date) >= weekStart
       );
-      const weekRevenue = weekSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
+      const weekRevenue = sumEffectiveAmount(weekSales);
 
       // Calculate month's sales
-      const monthSales = allSales.filter(sale =>
+      const monthSales = allSales.filter((sale) =>
         new Date(sale.purchase_date) >= monthStart
       );
-      const monthRevenue = monthSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
+      const monthRevenue = sumEffectiveAmount(monthSales);
 
       // Calculate last week's sales for comparison
-      const lastWeekSales = allSales.filter(sale => {
+      const lastWeekSales = allSales.filter((sale) => {
         const saleDate = new Date(sale.purchase_date);
         return saleDate >= lastWeekStart && saleDate <= lastWeekEnd;
       });
@@ -130,28 +134,38 @@ export const useSalesData = () => {
       // Product analysis for this week
       const productStats = weekSales.reduce((acc, sale) => {
         const product = sale.product_name;
+        const quantity = Number(sale.effective_quantity ?? sale.quantity ?? 0);
+        const revenue = Number(sale.effective_amount ?? sale.amount ?? 0);
+
         if (!acc[product]) {
           acc[product] = { quantity: 0, revenue: 0 };
         }
-        acc[product].quantity += 1;
-        acc[product].revenue += Number(sale.amount);
+
+        acc[product].quantity += quantity;
+        acc[product].revenue += revenue;
         return acc;
       }, {} as Record<string, { quantity: number; revenue: number }>);
 
       // Last week product stats for trend comparison
       const lastWeekProductStats = lastWeekSales.reduce((acc, sale) => {
         const product = sale.product_name;
+        const quantity = Number(sale.effective_quantity ?? sale.quantity ?? 0);
+        const revenue = Number(sale.effective_amount ?? sale.amount ?? 0);
+
         if (!acc[product]) {
           acc[product] = { quantity: 0, revenue: 0 };
         }
-        acc[product].quantity += 1;
-        acc[product].revenue += Number(sale.amount);
+        acc[product].quantity += quantity;
+        acc[product].revenue += revenue;
         return acc;
       }, {} as Record<string, { quantity: number; revenue: number }>);
 
       // Find best and slow sellers
-      const productEntries = Object.entries(productStats);
-      const sortedByQuantity = productEntries.sort((a, b) => b[1].quantity - a[1].quantity);
+      const productEntries = Object.entries(productStats) as Array<[
+        string,
+        { quantity: number; revenue: number }
+      ]>;
+      const sortedByQuantity = [...productEntries].sort((a, b) => b[1].quantity - a[1].quantity);
 
       const bestSeller = sortedByQuantity[0] || ["No sales", { quantity: 0, revenue: 0 }];
       const slowSeller = sortedByQuantity[sortedByQuantity.length - 1] || ["No sales", { quantity: 0, revenue: 0 }];
@@ -196,18 +210,18 @@ export const useSalesData = () => {
       }).slice(0, 5); // Limit to top 5 products
 
       // Calculate cash flow with real credit/debt data
-      const cashSales = allSales.filter(sale => sale.payment_method !== 'credit');
-      const creditSales = allSales.filter(sale => sale.payment_method === 'credit');
-
-      const totalCashCollected = cashSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
-      const totalCreditOutstanding = creditSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
+      const cashSales = allSales.filter((sale) => sale.payment_method !== 'credit');
+      const creditSales = allSales.filter((sale) => sale.payment_method === 'credit');
 
       // For this week's cash flow
-      const weekCashSales = weekSales.filter(sale => sale.payment_method !== 'credit');
-      const weekCreditSales = weekSales.filter(sale => sale.payment_method === 'credit');
+      const weekCashSales = weekSales.filter((sale) => sale.payment_method !== 'credit');
+      const weekCreditSales = weekSales.filter((sale) => sale.payment_method === 'credit');
 
-      const weeklyTotalCash = weekCashSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
-      const weeklyPendingCredit = weekCreditSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
+      const weeklyTotalCash = sumEffectiveAmount(weekCashSales);
+      const weeklyPendingCredit = weekCreditSales.reduce(
+        (sum, sale) => sum + Number(sale.outstanding_credit_amount ?? sale.effective_amount ?? 0),
+        0
+      );
 
       // Calculate debt cleared more comprehensively
       // Look for actual credit transactions and subsequent payments
@@ -223,13 +237,13 @@ export const useSalesData = () => {
         // For each customer, check if they have outstanding credit and recent payments
         for (const customer of customers) {
           // Get their credit sales
-          const customerCreditSales = allSales.filter(sale =>
+          const customerCreditSales = allSales.filter((sale) =>
             sale.customer_phone === customer.phone_number &&
             sale.payment_method === 'credit'
           );
 
           // Get their recent payments (non-credit sales that could be debt payments)
-          const customerPayments = allSales.filter(sale =>
+          const customerPayments = allSales.filter((sale) =>
             sale.customer_phone === customer.phone_number &&
             sale.payment_method !== 'credit' &&
             new Date(sale.purchase_date) >= weekStart
@@ -238,8 +252,11 @@ export const useSalesData = () => {
           // Simple heuristic: if customer has made payments this week and has outstanding credit,
           // consider some of those payments as debt settlement
           if (customerCreditSales.length > 0 && customerPayments.length > 0) {
-            const totalCredit = customerCreditSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
-            const weeklyPayments = customerPayments.reduce((sum, sale) => sum + Number(sale.amount), 0);
+            const totalCredit = customerCreditSales.reduce(
+              (sum, sale) => sum + Number(sale.outstanding_credit_amount ?? sale.effective_amount ?? 0),
+              0
+            );
+            const weeklyPayments = sumEffectiveAmount(customerPayments);
 
             // Consider up to 50% of this week's payments as potential debt settlement
             // This is a conservative approach since we don't have explicit debt payment tracking
@@ -252,7 +269,7 @@ export const useSalesData = () => {
         todaySales: formatCurrency(todayRevenue),
         weekSales: formatCurrency(weekRevenue),
         monthSales: formatCurrency(monthRevenue),
-        itemsSoldToday: todaySales.length,
+        itemsSoldToday: todayItemsSold,
         bestSellerWeek: { product: bestSeller[0], quantity: bestSeller[1].quantity },
         slowSellerWeek: { product: slowSeller[0], quantity: slowSeller[1].quantity }
       });

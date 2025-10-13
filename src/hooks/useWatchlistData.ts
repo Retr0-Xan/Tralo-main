@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
+import { fetchSalesAnalytics } from "@/lib/sales-analytics";
 
 interface WatchlistItem {
   id: string;
@@ -33,38 +34,22 @@ export const useWatchlistData = () => {
     }
 
     try {
-      // Get user's business profile
-      const { data: businessProfile } = await supabase
-        .from('business_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!businessProfile) {
-        setLoading(false);
-        return;
-      }
-
       // Get user's products and their recent sales to calculate current prices
-      const { data: sales } = await supabase
-        .from('customer_purchases')
-        .select('product_name, amount, purchase_date')
-        .eq('business_id', businessProfile.id)
-        .gte('purchase_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .order('purchase_date', { ascending: false });
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const sales = await fetchSalesAnalytics(user.id, {
+        startDate: thirtyDaysAgo.toISOString(),
+        includeReversed: false
+      });
 
       // Calculate current prices from recent sales
       const productPrices = new Map<string, { price: number, oldPrice: number, count: number }>();
 
       // Get prices from last 30 days
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
 
-      const filteredSales = (sales || []).filter((sale) => Number(sale.amount) > 0);
-
-      filteredSales.forEach(sale => {
+      sales.forEach(sale => {
         const saleDate = new Date(sale.purchase_date);
-        const price = Number(sale.amount);
+        const price = Number(sale.effective_amount ?? sale.amount ?? 0);
 
         if (!productPrices.has(sale.product_name)) {
           productPrices.set(sale.product_name, { price: 0, oldPrice: 0, count: 0 });
