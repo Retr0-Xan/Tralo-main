@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+change-summary-2025-10-13.txt
 
 # Editor directories and files
 .vscode/*
