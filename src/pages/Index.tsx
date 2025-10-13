@@ -39,15 +39,7 @@ const Index = () => {
         icon={LayoutDashboard}
         title="Operations Control Center"
         description={`Welcome back, ${ownerName}. Review today's performance and next steps.`}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <TrustScoreBadge size="md" />
-            <Button variant="outline" size="sm" onClick={() => navigate("/profile")}
-              className="rounded-xl border-border/70">
-              Manage Profile
-            </Button>
-          </div>
-        }
+        actions={<TrustScoreBadge size="md" />}
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

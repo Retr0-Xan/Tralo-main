@@ -11,9 +11,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
-import { Menu, PlusCircle, BellRing } from "lucide-react";
+import { Menu, PlusCircle, BellRing, LogOut, Settings as SettingsIcon } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface TopbarProps {
     onMenuClick: () => void;
@@ -79,6 +89,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { toast } = useToast();
 
     const metadata = useMemo(() => getRouteMeta(location.pathname), [location.pathname]);
     const breadcrumbs = useMemo(() => buildBreadcrumbs(location.pathname), [location.pathname]);
@@ -156,9 +167,49 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
                             <span className="sr-only">Notifications</span>
                         </Button>
                         <ThemeToggle />
-                        <Avatar className="ml-1 h-10 w-10 border border-border/70">
-                            <AvatarFallback>{initials}</AvatarFallback>
-                        </Avatar>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Avatar className="ml-1 h-10 w-10 cursor-pointer border border-border/70">
+                                    <AvatarFallback>{initials}</AvatarFallback>
+                                </Avatar>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuLabel>
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-medium text-foreground">{user?.user_metadata?.owner_name ?? user?.email}</span>
+                                        <span className="text-xs text-muted-foreground">Signed in</span>
+                                    </div>
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => navigate("/profile")}>
+                                    <SettingsIcon className="mr-2 h-4 w-4" />
+                                    Settings
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onSelect={async () => {
+                                        const { error } = await supabase.auth.signOut();
+                                        if (error) {
+                                            toast({
+                                                title: "Error",
+                                                description: "Failed to log out. Please try again.",
+                                                variant: "destructive",
+                                            });
+                                            return;
+                                        }
+
+                                        toast({
+                                            title: "Logged Out",
+                                            description: "You have been signed out.",
+                                        });
+
+                                        navigate("/auth");
+                                    }}
+                                >
+                                    <LogOut className="mr-2 h-4 w-4" />
+                                    Log out
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </div>
 
