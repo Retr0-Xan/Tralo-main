@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
 
 interface HomeMetricsResult {
   todaysSales: number;
@@ -88,11 +90,14 @@ const fetchHomeMetrics = async (userId: string): Promise<HomeMetricsResult> => {
     throw movementsResult.error;
   }
 
-  const todaysSales = todaysSalesResult.data?.reduce((sum, sale) => sum + Number(sale.amount), 0) ?? 0;
-  const monthlyGoodsTraded = monthlySalesResult.data?.reduce(
-    (sum, sale) => sum + Number(sale.amount),
-    0,
-  ) ?? 0;
+  const todaysSales = (todaysSalesResult.data ?? []).reduce((sum, sale) => {
+    const amount = Number(sale.amount);
+    return amount > 0 ? sum + amount : sum;
+  }, 0);
+  const monthlyGoodsTraded = (monthlySalesResult.data ?? []).reduce((sum, sale) => {
+    const amount = Number(sale.amount);
+    return amount > 0 ? sum + amount : sum;
+  }, 0);
 
   let currentStockValue = 0;
 
@@ -159,12 +164,22 @@ export const homeMetricsQueryKey = (userId?: string | null) => ["home-metrics", 
 export const useHomeMetrics = (): HomeMetrics => {
   const { user } = useAuth();
 
-  const { data, isLoading, isFetching, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: homeMetricsQueryKey(user?.id),
     queryFn: () => fetchHomeMetrics(user!.id),
     enabled: !!user?.id,
     staleTime: 30_000,
   });
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const unsubscribe = subscribeToSalesDataUpdates(() => {
+      refetch();
+    });
+    return unsubscribe;
+  }, [user, refetch]);
 
   if (!user) {
     return {

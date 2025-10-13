@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
 
 interface WatchlistItem {
   id: string;
@@ -25,7 +26,7 @@ export const useWatchlistData = () => {
   const [availableProducts, setAvailableProducts] = useState<ProductPrice[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchWatchlistData = async () => {
+  const fetchWatchlistData = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
@@ -54,21 +55,23 @@ export const useWatchlistData = () => {
 
       // Calculate current prices from recent sales
       const productPrices = new Map<string, { price: number, oldPrice: number, count: number }>();
-      
+
       // Get prices from last 30 days
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
 
-      sales?.forEach(sale => {
+      const filteredSales = (sales || []).filter((sale) => Number(sale.amount) > 0);
+
+      filteredSales.forEach(sale => {
         const saleDate = new Date(sale.purchase_date);
         const price = Number(sale.amount);
-        
+
         if (!productPrices.has(sale.product_name)) {
           productPrices.set(sale.product_name, { price: 0, oldPrice: 0, count: 0 });
         }
-        
+
         const product = productPrices.get(sale.product_name)!;
-        
+
         if (saleDate >= fifteenDaysAgo) {
           // Recent price (last 15 days)
           product.price = (product.price * product.count + price) / (product.count + 1);
@@ -85,7 +88,7 @@ export const useWatchlistData = () => {
         const currentPrice = data.price > 0 ? data.price : data.oldPrice;
         let trend: 'up' | 'down' | 'flat' = 'flat';
         let priceChange = 0;
-        
+
         if (data.price > 0 && data.oldPrice > 0) {
           const change = data.price - data.oldPrice;
           priceChange = change;
@@ -93,7 +96,7 @@ export const useWatchlistData = () => {
             trend = change > 0 ? 'up' : 'down';
           }
         }
-        
+
         available.push({
           name,
           currentPrice,
@@ -123,7 +126,7 @@ export const useWatchlistData = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   const addToWatchlist = async (productName: string, targetPrice: number) => {
     const product = availableProducts.find(p => p.name === productName);
@@ -147,8 +150,8 @@ export const useWatchlistData = () => {
   };
 
   const toggleAlert = (itemId: string) => {
-    setWatchlistItems(prev => 
-      prev.map(item => 
+    setWatchlistItems(prev =>
+      prev.map(item =>
         item.id === itemId ? { ...item, alert_enabled: !item.alert_enabled } : item
       )
     );
@@ -156,7 +159,17 @@ export const useWatchlistData = () => {
 
   useEffect(() => {
     fetchWatchlistData();
-  }, [user]);
+  }, [fetchWatchlistData]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const unsubscribe = subscribeToSalesDataUpdates(() => {
+      fetchWatchlistData();
+    });
+    return unsubscribe;
+  }, [user, fetchWatchlistData]);
 
   return {
     watchlistItems,

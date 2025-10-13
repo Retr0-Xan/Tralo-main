@@ -54,7 +54,7 @@ const DocumentHistory = ({ onBack }: DocumentHistoryProps) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
+
       setDocuments(data || []);
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -96,6 +96,7 @@ const DocumentHistory = ({ onBack }: DocumentHistoryProps) => {
       invoice: "Invoice",
       waybill: "Waybill",
       purchase_order: "Purchase Order",
+      reversal_receipt: "Reversal Receipt",
       financial_statement: "Financial Statement",
       sales_report: "Sales Report"
     };
@@ -228,6 +229,7 @@ const DocumentHistory = ({ onBack }: DocumentHistoryProps) => {
                   <SelectItem value="invoice">Invoices</SelectItem>
                   <SelectItem value="waybill">Waybills</SelectItem>
                   <SelectItem value="purchase_order">Purchase Orders</SelectItem>
+                  <SelectItem value="reversal_receipt">Reversal Receipts</SelectItem>
                   <SelectItem value="financial_statement">Financial Statements</SelectItem>
                   <SelectItem value="sales_report">Sales Reports</SelectItem>
                 </SelectContent>

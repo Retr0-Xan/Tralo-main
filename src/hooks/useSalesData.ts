@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
 
 interface SalesMetrics {
   todaySales: string;
@@ -69,7 +70,7 @@ export const useSalesData = () => {
     return "Very Slow";
   };
 
-  const fetchSalesData = async () => {
+  const fetchSalesData = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -92,28 +93,30 @@ export const useSalesData = () => {
       const lastWeekEnd = new Date(weekStart.getTime() - 1);
 
       // Fetch all sales data
-      const { data: allSales } = await supabase
+      const { data: rawSales } = await supabase
         .from('customer_purchases')
         .select('*')
         .eq('business_id', businessProfile.id)
         .order('purchase_date', { ascending: false });
 
-      if (!allSales) return;
+      if (!rawSales) return;
+
+      const allSales = rawSales.filter((sale) => Number(sale.amount) > 0 && sale.payment_method !== 'reversed');
 
       // Calculate today's sales
-      const todaySales = allSales.filter(sale => 
+      const todaySales = allSales.filter(sale =>
         new Date(sale.purchase_date) >= todayStart
       );
       const todayRevenue = todaySales.reduce((sum, sale) => sum + Number(sale.amount), 0);
 
       // Calculate week's sales
-      const weekSales = allSales.filter(sale => 
+      const weekSales = allSales.filter(sale =>
         new Date(sale.purchase_date) >= weekStart
       );
       const weekRevenue = weekSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
 
       // Calculate month's sales
-      const monthSales = allSales.filter(sale => 
+      const monthSales = allSales.filter(sale =>
         new Date(sale.purchase_date) >= monthStart
       );
       const monthRevenue = monthSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
@@ -149,7 +152,7 @@ export const useSalesData = () => {
       // Find best and slow sellers
       const productEntries = Object.entries(productStats);
       const sortedByQuantity = productEntries.sort((a, b) => b[1].quantity - a[1].quantity);
-      
+
       const bestSeller = sortedByQuantity[0] || ["No sales", { quantity: 0, revenue: 0 }];
       const slowSeller = sortedByQuantity[sortedByQuantity.length - 1] || ["No sales", { quantity: 0, revenue: 0 }];
 
@@ -165,10 +168,10 @@ export const useSalesData = () => {
       const trends: SalesTrend[] = Object.keys(productStats).map(product => {
         const currentWeekQuantity = productStats[product]?.quantity || 0;
         const lastWeekQuantity = lastWeekProductStats[product]?.quantity || 0;
-        
+
         let trend: string;
         let isPositive: boolean | null;
-        
+
         if (lastWeekQuantity === 0 && currentWeekQuantity > 0) {
           trend = "New product this week";
           isPositive = true;
@@ -188,63 +191,63 @@ export const useSalesData = () => {
             isPositive = false;
           }
         }
-        
+
         return { product, trend, isPositive };
       }).slice(0, 5); // Limit to top 5 products
 
       // Calculate cash flow with real credit/debt data
       const cashSales = allSales.filter(sale => sale.payment_method !== 'credit');
       const creditSales = allSales.filter(sale => sale.payment_method === 'credit');
-      
+
       const totalCashCollected = cashSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
       const totalCreditOutstanding = creditSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
-      
+
       // For this week's cash flow
       const weekCashSales = weekSales.filter(sale => sale.payment_method !== 'credit');
       const weekCreditSales = weekSales.filter(sale => sale.payment_method === 'credit');
-      
+
       const weeklyTotalCash = weekCashSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
       const weeklyPendingCredit = weekCreditSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
-      
+
       // Calculate debt cleared more comprehensively
       // Look for actual credit transactions and subsequent payments
       let weeklyDebtCleared = 0;
-      
+
       // Check the customers table for actual credit tracking
       const { data: customers } = await supabase
         .from('customers')
         .select('*')
         .eq('user_id', user.id);
-      
+
       if (customers) {
         // For each customer, check if they have outstanding credit and recent payments
         for (const customer of customers) {
           // Get their credit sales
-          const customerCreditSales = allSales.filter(sale => 
-            sale.customer_phone === customer.phone_number && 
+          const customerCreditSales = allSales.filter(sale =>
+            sale.customer_phone === customer.phone_number &&
             sale.payment_method === 'credit'
           );
-          
+
           // Get their recent payments (non-credit sales that could be debt payments)
-          const customerPayments = allSales.filter(sale => 
-            sale.customer_phone === customer.phone_number && 
+          const customerPayments = allSales.filter(sale =>
+            sale.customer_phone === customer.phone_number &&
             sale.payment_method !== 'credit' &&
             new Date(sale.purchase_date) >= weekStart
           );
-          
+
           // Simple heuristic: if customer has made payments this week and has outstanding credit,
           // consider some of those payments as debt settlement
           if (customerCreditSales.length > 0 && customerPayments.length > 0) {
             const totalCredit = customerCreditSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
             const weeklyPayments = customerPayments.reduce((sum, sale) => sum + Number(sale.amount), 0);
-            
+
             // Consider up to 50% of this week's payments as potential debt settlement
             // This is a conservative approach since we don't have explicit debt payment tracking
             weeklyDebtCleared += Math.min(weeklyPayments * 0.3, totalCredit);
           }
         }
       }
-      
+
       setSalesMetrics({
         todaySales: formatCurrency(todayRevenue),
         weekSales: formatCurrency(weekRevenue),
@@ -277,12 +280,12 @@ export const useSalesData = () => {
 
       // Generate dynamic trade insights based on sales data
       const dynamicInsights: TradeInsight[] = [];
-      
+
       if (breakdown.length > 0) {
         const topProduct = breakdown[0];
         const fastMovers = breakdown.filter(item => item.status === "Fast Mover");
         const slowMovers = breakdown.filter(item => item.status === "Very Slow" || item.status === "Slow Mover");
-        
+
         if (fastMovers.length > 0) {
           dynamicInsights.push({
             message: `${topProduct.item} is selling fast (${topProduct.unitsSold} units this week). Check trade index for optimal restocking prices.`,
@@ -291,7 +294,7 @@ export const useSalesData = () => {
             priority: 'high'
           });
         }
-        
+
         if (slowMovers.length > 0) {
           const slowProduct = slowMovers[0];
           dynamicInsights.push({
@@ -301,11 +304,11 @@ export const useSalesData = () => {
             priority: 'medium'
           });
         }
-        
+
         // Market trend insight
         const risingTrends = trends.filter(t => t.isPositive === true);
         const fallingTrends = trends.filter(t => t.isPositive === false);
-        
+
         if (risingTrends.length > 0) {
           dynamicInsights.push({
             message: `${risingTrends[0].product} shows increasing demand. Monitor market prices for profitable restocking opportunities.`,
@@ -314,7 +317,7 @@ export const useSalesData = () => {
             priority: 'medium'
           });
         }
-        
+
         if (fallingTrends.length > 0) {
           dynamicInsights.push({
             message: `${fallingTrends[0].product} sales are declining. Check if market prices have increased affecting customer demand.`,
@@ -324,21 +327,31 @@ export const useSalesData = () => {
           });
         }
       }
-      
+
       // Combine database insights with dynamic insights
       const combinedInsights = [...(insights || []), ...dynamicInsights].slice(0, 5);
       setTradeInsights(combinedInsights);
-      
+
     } catch (error) {
       console.error('Error fetching sales data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchSalesData();
-  }, [user]);
+  }, [fetchSalesData]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const unsubscribe = subscribeToSalesDataUpdates(() => {
+      fetchSalesData();
+    });
+    return unsubscribe;
+  }, [user, fetchSalesData]);
 
   return {
     salesMetrics,

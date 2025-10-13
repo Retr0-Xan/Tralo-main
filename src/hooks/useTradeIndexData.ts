@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
 
 interface CommodityData {
   name: string;
@@ -30,7 +31,7 @@ export const useTradeIndexData = () => {
   const [insights, setInsights] = useState<MarketInsight[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchTradeData = async () => {
+  const fetchTradeData = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
@@ -85,7 +86,7 @@ export const useTradeIndexData = () => {
             salesThisMonth: 0
           });
         }
-        
+
         const commodity = commodityMap.get(name)!;
         commodity.currentStock += item.quantity_received;
         commodity.averageCost = item.unit_cost || 0;
@@ -93,12 +94,14 @@ export const useTradeIndexData = () => {
       });
 
       // Process sales data
-      sales?.forEach(sale => {
+      const filteredSales = (sales || []).filter((sale) => Number(sale.amount) > 0);
+
+      filteredSales.forEach(sale => {
         const name = sale.product_name.toLowerCase();
         if (commodityMap.has(name)) {
           const commodity = commodityMap.get(name)!;
           commodity.totalSales += Number(sale.amount);
-          
+
           // Check if sale is this month
           const saleDate = new Date(sale.purchase_date);
           const now = new Date();
@@ -174,11 +177,21 @@ export const useTradeIndexData = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchTradeData();
-  }, [user]);
+  }, [fetchTradeData]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const unsubscribe = subscribeToSalesDataUpdates(() => {
+      fetchTradeData();
+    });
+    return unsubscribe;
+  }, [user, fetchTradeData]);
 
   const refreshData = () => {
     setLoading(true);

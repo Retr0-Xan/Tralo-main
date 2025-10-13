@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
+import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
 
 export interface InventoryOverviewItem {
     id: string;
@@ -119,10 +121,12 @@ const buildInventoryOverview = async (userId: string): Promise<InventoryOverview
             avgCostPrice = Number(product.selling_price);
         }
 
-        const productSales = sales.filter((s) => {
-            const saleName = (s.product_name || "").toLowerCase();
-            return saleName.includes(productName) || productName.includes(saleName);
-        });
+        const productSales = sales
+            .filter((s) => Number(s.amount) > 0)
+            .filter((s) => {
+                const saleName = (s.product_name || "").toLowerCase();
+                return saleName.includes(productName) || productName.includes(saleName);
+            });
 
         const totalSalesAmount = productSales.reduce((sum, s) => sum + Number(s.amount), 0);
         const avgSellingPrice = productSales.length > 0 ? totalSalesAmount / productSales.length : 0;
@@ -165,7 +169,9 @@ const buildInventoryOverview = async (userId: string): Promise<InventoryOverview
         totalValue: inventoryItems.reduce((sum, item) => sum + item.total_value, 0),
         lowStockItems: inventoryItems.filter((item) => item.status === "low").length,
         outOfStockItems: inventoryItems.filter((item) => item.status === "out").length,
-        totalRevenue: sales.reduce((sum, sale) => sum + Number(sale.amount), 0),
+        totalRevenue: sales
+            .filter((sale) => Number(sale.amount) > 0)
+            .reduce((sum, sale) => sum + Number(sale.amount), 0),
     };
 
     return {
@@ -183,10 +189,22 @@ export const inventoryOverviewQueryKey = (userId?: string | null) => [
 export const useInventoryOverview = () => {
     const { user } = useAuth();
 
-    return useQuery({
+    const query = useQuery({
         queryKey: inventoryOverviewQueryKey(user?.id),
         queryFn: () => buildInventoryOverview(user!.id),
         enabled: !!user?.id,
         staleTime: 30_000,
     });
+
+    useEffect(() => {
+        if (!user) {
+            return;
+        }
+        const unsubscribe = subscribeToSalesDataUpdates(() => {
+            query.refetch();
+        });
+        return unsubscribe;
+    }, [user, query]);
+
+    return query;
 };

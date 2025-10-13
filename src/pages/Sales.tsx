@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Receipt, BarChart3, FileText, DollarSign, Users, Layers, LineChart } from "lucide-react";
+import { Receipt, BarChart3, FileText, DollarSign, Users, Layers, LineChart, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -11,10 +11,11 @@ import ExpenseRecording from "@/components/expenses/ExpenseRecording";
 import CustomerTrackingDialog from "@/components/sales/CustomerTrackingDialog";
 import SaleReversalDialog from "@/components/sales/SaleReversalDialog";
 import ClientValueRatioDisplay from "@/components/sales/ClientValueRatioDisplay";
+import SalesHistory from "@/components/sales/SalesHistory";
 
 
 const Sales = () => {
-  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "summary" | "expenses" | "customers">("recording");
+  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "summary" | "expenses" | "customers" | "history">("recording");
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
@@ -38,7 +39,7 @@ const Sales = () => {
       />
 
       <Card className="rounded-2xl border border-border/70">
-        <div className="grid gap-2 border-b border-border/60 bg-muted/30 p-2 md:grid-cols-3 lg:grid-cols-5">
+        <div className="grid gap-2 border-b border-border/60 bg-muted/30 p-2 md:grid-cols-3 lg:grid-cols-6">
           <Button
             size="sm"
             variant={activeTab === "recording" ? "default" : "ghost"}
@@ -65,6 +66,15 @@ const Sales = () => {
           >
             <BarChart3 className="mr-2 h-4 w-4" />
             Sales Dashboard
+          </Button>
+          <Button
+            size="sm"
+            variant={activeTab === "history" ? "default" : "ghost"}
+            onClick={() => setActiveTab("history")}
+            className="rounded-xl px-4 py-2"
+          >
+            <Clock className="mr-2 h-4 w-4" />
+            Sales History
           </Button>
           <Button
             size="sm"
@@ -110,6 +120,7 @@ const Sales = () => {
             </div>
           )}
           {activeTab === "dashboard" && <SalesDashboard />}
+          {activeTab === "history" && <SalesHistory />}
           {activeTab === "summary" && <SalesSummary />}
           {activeTab === "customers" && (
             <div className="space-y-6">

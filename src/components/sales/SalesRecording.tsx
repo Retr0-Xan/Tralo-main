@@ -11,6 +11,7 @@ import { AlertCircle, ShoppingCart, Plus, Trash2, Receipt, Save, Building, User 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { dispatchSalesDataUpdated } from "@/lib/sales-events";
 
 interface ProductItem {
   id: string;
@@ -228,7 +229,7 @@ const SalesRecording = () => {
       const grandTotal = calculateGrandTotal();
 
       // Handle customer creation/update if phone or name provided
-      let customerId = null;
+      let customerId: string | null = null;
       if (customerPhone || customerName) {
         // Check for existing customer by phone number OR name
         let existingCustomer = null;
@@ -296,22 +297,28 @@ const SalesRecording = () => {
         }
       }
 
+      const resolvedPaymentMethod = paymentMethod === 'credit' || paymentStatus === 'credit' ? 'credit' : paymentMethod;
+
       // Process each sale item
       console.log('Processing sale items...');
       for (const item of salesItems) {
         console.log('Processing item:', item);
 
+        const saleTimestamp = new Date().toISOString();
+
         // Record the purchase
-        const { error: purchaseError } = await supabase
+        const { data: purchaseRecord, error: purchaseError } = await supabase
           .from('customer_purchases')
           .insert({
             business_id: businessProfile.id,
             product_name: item.productName,
             customer_phone: customerPhone || 'walk-in',
             amount: item.total,
-            payment_method: paymentMethod === 'credit' || paymentStatus === 'credit' ? 'credit' : paymentMethod,
-            purchase_date: new Date().toISOString(),
-          });
+            payment_method: resolvedPaymentMethod,
+            purchase_date: saleTimestamp,
+          })
+          .select('id')
+          .single();
 
         if (purchaseError) {
           console.error('Purchase insert error:', purchaseError);
@@ -332,8 +339,9 @@ const SalesRecording = () => {
               quantity: item.quantity,
               unit_price: item.unitPrice,
               total_amount: item.total,
-              payment_method: paymentMethod === 'credit' || paymentStatus === 'credit' ? 'credit' : paymentMethod,
-              sale_date: new Date().toISOString(),
+              payment_method: resolvedPaymentMethod,
+              sale_date: saleTimestamp,
+              sale_id: purchaseRecord?.id || null,
             });
 
           if (saleError) {
@@ -341,6 +349,68 @@ const SalesRecording = () => {
             throw saleError;
           }
           console.log('Customer sale recorded');
+        }
+
+        if (item.isFromInventory) {
+          const { data: productRecord, error: productFetchError } = await supabase
+            .from('user_products')
+            .select('id, current_stock, total_sales_this_month, product_name')
+            .eq('user_id', user!.id)
+            .eq('product_name', item.productName)
+            .maybeSingle();
+
+          if (productFetchError) {
+            console.error('Error fetching product for stock update:', productFetchError);
+            throw productFetchError;
+          }
+
+          if (productRecord) {
+            const updatedStock = Math.max(0, Number(productRecord.current_stock ?? 0) - item.quantity);
+            const updatedSalesTotal = Number(productRecord.total_sales_this_month ?? 0) + item.total;
+
+            const { error: movementError } = await supabase
+              .from('inventory_movements')
+              .insert({
+                user_id: user!.id,
+                product_name: productRecord.product_name,
+                movement_type: 'sold',
+                quantity: item.quantity,
+                unit_price: item.unitPrice,
+                selling_price: item.unitPrice,
+                movement_date: saleTimestamp,
+                customer_id: customerId,
+                sale_id: purchaseRecord?.id || null,
+                notes: customerName ? `Sold to ${customerName}` : null,
+              });
+
+            if (movementError) {
+              console.error('Error recording inventory movement:', movementError);
+              throw movementError;
+            }
+
+            const { error: productUpdateError } = await supabase
+              .from('user_products')
+              .update({
+                current_stock: updatedStock,
+                total_sales_this_month: updatedSalesTotal,
+                last_sale_date: saleTimestamp,
+                updated_at: saleTimestamp,
+              })
+              .eq('id', productRecord.id);
+
+            if (productUpdateError) {
+              console.error('Error updating product stock:', productUpdateError);
+              throw productUpdateError;
+            }
+
+            setInventoryProducts((prev) =>
+              prev.map((product) =>
+                product.id === productRecord.id
+                  ? { ...product, current_stock: updatedStock }
+                  : product
+              )
+            );
+          }
         }
       }
 
@@ -455,6 +525,8 @@ const SalesRecording = () => {
         title: "✅ Sale Saved Successfully!",
         description: `Sale of ¢${grandTotal.toFixed(2)} has been recorded${statusMessage}.${generateReceipt ? ' Receipt generated!' : ''}`,
       });
+
+      dispatchSalesDataUpdated();
 
       // Reset form
       setSalesItems([]);

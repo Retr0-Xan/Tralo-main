@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { dispatchSalesDataUpdated } from "@/lib/sales-events";
 
 interface Sale {
   id: string;
@@ -31,7 +32,7 @@ const SaleReversalDialog = () => {
 
   const fetchRecentSales = async () => {
     if (!user) return;
-    
+
     setFetchingData(true);
     try {
       // Get business profile first
@@ -59,7 +60,17 @@ const SaleReversalDialog = () => {
 
       if (salesError) throw salesError;
 
-      setSales(salesData || []);
+      const { data: reversalRecords, error: reversalsError } = await supabase
+        .from('sale_reversals')
+        .select('original_sale_id')
+        .eq('user_id', user.id);
+
+      if (reversalsError) throw reversalsError;
+
+      const reversedIds = new Set((reversalRecords || []).map(record => record.original_sale_id));
+      const filteredSales = (salesData || []).filter(sale => Number(sale.amount) > 0 && !reversedIds.has(sale.id));
+
+      setSales(filteredSales);
     } catch (error) {
       console.error('Error fetching sales:', error);
       toast({
@@ -74,14 +85,19 @@ const SaleReversalDialog = () => {
 
   const handleReverseSale = async () => {
     if (!selectedSale || !user) return;
-    
+
     setLoading(true);
     try {
+      const trimmedReason = reversalReason.trim();
+
       // Generate reversal receipt number
       const { data: receiptNumber, error: numberError } = await supabase
         .rpc('generate_reversal_receipt_number', { user_uuid: user.id });
 
       if (numberError) throw numberError;
+      if (!receiptNumber) {
+        throw new Error('Failed to generate reversal receipt number.');
+      }
 
       // Create sale reversal record
       const { error: reversalError } = await supabase
@@ -89,61 +105,185 @@ const SaleReversalDialog = () => {
         .insert({
           user_id: user.id,
           original_sale_id: selectedSale.id,
-          reversal_reason: reversalReason,
-          reversal_receipt_number: receiptNumber
+          reversal_reason: trimmedReason,
+          reversal_receipt_number: receiptNumber,
+          reversal_date: new Date().toISOString()
         });
 
       if (reversalError) throw reversalError;
 
-      // Update inventory - add back the stock
-      const { error: inventoryError } = await supabase
+      // Fetch any inventory movements linked to this sale to determine quantities
+      const { data: saleMovements, error: movementFetchError } = await supabase
         .from('inventory_movements')
-        .insert({
-          user_id: user.id,
-          product_name: selectedSale.product_name,
-          movement_type: 'returned',
-          quantity: 1,
-          unit_price: selectedSale.amount,
-          customer_id: selectedSale.customer_phone,
-          notes: `Sale reversal: ${reversalReason}`,
-          movement_date: new Date().toISOString()
-        });
-
-      if (inventoryError) throw inventoryError;
-
-      // Update user_products stock - get current values first
-      const { data: currentProduct, error: fetchError } = await supabase
-        .from('user_products')
-        .select('current_stock, total_sales_this_month')
+        .select('product_name, quantity, unit_price, selling_price, customer_id')
         .eq('user_id', user.id)
-        .ilike('product_name', `%${selectedSale.product_name}%`)
-        .maybeSingle();
+        .eq('sale_id', selectedSale.id)
+        .eq('movement_type', 'sold');
 
-      if (fetchError) throw fetchError;
+      if (movementFetchError) throw movementFetchError;
 
-      if (currentProduct) {
-        const { error: productError } = await supabase
-          .from('user_products')
-          .update({
-            current_stock: (currentProduct.current_stock || 0) + 1,
-            total_sales_this_month: Math.max(0, (currentProduct.total_sales_this_month || 0) - selectedSale.amount),
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id)
-          .ilike('product_name', `%${selectedSale.product_name}%`);
+      let totalQuantityReturned = 0;
+      let totalSaleAmount = 0;
 
-        if (productError) throw productError;
+      const reversalTimestamp = new Date().toISOString();
+
+      if (saleMovements && saleMovements.length > 0) {
+        for (const movement of saleMovements) {
+          const quantityValue = Number(movement.quantity ?? 0);
+          const quantityToRestore = quantityValue > 0 ? quantityValue : 1;
+          const sellingPrice = Number(movement.selling_price ?? movement.unit_price ?? selectedSale.amount);
+
+          const { error: inventoryError } = await supabase
+            .from('inventory_movements')
+            .insert({
+              user_id: user.id,
+              product_name: movement.product_name,
+              movement_type: 'returned',
+              quantity: quantityToRestore,
+              unit_price: movement.unit_price,
+              selling_price: sellingPrice,
+              customer_id: movement.customer_id,
+              sale_id: selectedSale.id,
+              notes: `Sale reversal: ${trimmedReason}`,
+              movement_date: reversalTimestamp
+            });
+
+          if (inventoryError) throw inventoryError;
+
+          const { data: productRecord, error: fetchError } = await supabase
+            .from('user_products')
+            .select('id, current_stock, total_sales_this_month')
+            .eq('user_id', user.id)
+            .ilike('product_name', `%${movement.product_name}%`)
+            .maybeSingle();
+
+          if (fetchError) throw fetchError;
+
+          if (productRecord) {
+            const updatedStock = Number(productRecord.current_stock ?? 0) + quantityToRestore;
+            const updatedSalesTotal = Math.max(0, Number(productRecord.total_sales_this_month ?? 0) - (sellingPrice * quantityToRestore));
+
+            const { error: productError } = await supabase
+              .from('user_products')
+              .update({
+                current_stock: updatedStock,
+                total_sales_this_month: updatedSalesTotal,
+                updated_at: reversalTimestamp
+              })
+              .eq('id', productRecord.id);
+
+            if (productError) throw productError;
+          }
+
+          totalQuantityReturned += quantityToRestore;
+          totalSaleAmount += sellingPrice * quantityToRestore;
+        }
       }
+
+      if (totalQuantityReturned === 0) {
+        totalQuantityReturned = 1;
+      }
+
+      if (totalSaleAmount === 0) {
+        totalSaleAmount = Number(selectedSale.amount);
+      }
+
+      // Mark original sale as reversed by zeroing the amount and tagging the payment method
+      const { error: purchaseUpdateError } = await supabase
+        .from('customer_purchases')
+        .update({
+          amount: 0,
+          payment_method: 'reversed'
+        })
+        .eq('id', selectedSale.id);
+
+      if (purchaseUpdateError) throw purchaseUpdateError;
+
+      const { error: customerSalesUpdateError } = await supabase
+        .from('customer_sales')
+        .update({
+          total_amount: 0,
+          quantity: 0,
+          payment_method: 'reversed'
+        })
+        .eq('sale_id', selectedSale.id);
+
+      if (customerSalesUpdateError) throw customerSalesUpdateError;
+
+      if (selectedSale.customer_phone && selectedSale.customer_phone.toLowerCase() !== 'walk-in') {
+        const { data: customerRecord, error: customerFetchError } = await supabase
+          .from('customers')
+          .select('id, total_purchases, total_sales_count')
+          .eq('user_id', user.id)
+          .eq('phone_number', selectedSale.customer_phone)
+          .maybeSingle();
+
+        if (customerFetchError) throw customerFetchError;
+
+        if (customerRecord) {
+          const updatedTotal = Math.max(0, Number(customerRecord.total_purchases ?? 0) - Number(totalSaleAmount));
+          const updatedCount = Math.max(0, Number(customerRecord.total_sales_count ?? 0) - 1);
+
+          const { error: customerUpdateError } = await supabase
+            .from('customers')
+            .update({
+              total_purchases: updatedTotal,
+              total_sales_count: updatedCount
+            })
+            .eq('id', customerRecord.id);
+
+          if (customerUpdateError) throw customerUpdateError;
+        }
+      }
+
+      const reversalDocumentContent = {
+        items: [
+          {
+            item_name: selectedSale.product_name,
+            quantity: totalQuantityReturned,
+            unit_price: totalQuantityReturned > 0 ? Number(totalSaleAmount) / totalQuantityReturned : Number(selectedSale.amount),
+            total_price: Number(totalSaleAmount)
+          }
+        ],
+        notes: trimmedReason,
+        original_sale_id: selectedSale.id,
+        original_amount: Number(selectedSale.amount),
+        payment_method: selectedSale.payment_method,
+        customer: {
+          phone: selectedSale.customer_phone
+        },
+        reversed_at: reversalTimestamp
+      };
+
+      const { error: reversalDocError } = await supabase
+        .from('documents')
+        .insert([{
+          user_id: user.id,
+          document_type: 'reversal_receipt',
+          document_number: receiptNumber,
+          title: `Reversal - ${selectedSale.product_name}`,
+          content: reversalDocumentContent as any,
+          total_amount: Number(totalSaleAmount),
+          customer_name: selectedSale.customer_phone || 'Walk-in Customer',
+          status: 'issued'
+        }]);
+
+      if (reversalDocError) throw reversalDocError;
 
       toast({
         title: "Sale Reversed",
         description: `Sale reversed successfully. Reversal receipt: ${receiptNumber}`,
       });
 
+      dispatchSalesDataUpdated();
+
       // Reset form
       setSelectedSale(null);
       setReversalReason("");
-      
+
+      // Remove sale from local list
+      setSales((prev) => prev.filter((sale) => sale.id !== selectedSale.id));
+
       // Refresh sales data
       fetchRecentSales();
     } catch (error) {
@@ -183,16 +323,16 @@ const SaleReversalDialog = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Recent Sales (Last 30 Days)</h3>
-                <Button 
-                  onClick={fetchRecentSales} 
-                  variant="outline" 
+                <Button
+                  onClick={fetchRecentSales}
+                  variant="outline"
                   size="sm"
                   disabled={fetchingData}
                 >
                   {fetchingData ? "Loading..." : "Refresh"}
                 </Button>
               </div>
-              
+
               <div className="grid gap-3 max-h-96 overflow-y-auto">
                 {sales.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">
@@ -200,8 +340,8 @@ const SaleReversalDialog = () => {
                   </p>
                 ) : (
                   sales.map((sale) => (
-                    <Card 
-                      key={sale.id} 
+                    <Card
+                      key={sale.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
                       onClick={() => setSelectedSale(sale)}
                     >
@@ -233,9 +373,9 @@ const SaleReversalDialog = () => {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Sale Details</h3>
-                <Button 
-                  onClick={() => setSelectedSale(null)} 
-                  variant="outline" 
+                <Button
+                  onClick={() => setSelectedSale(null)}
+                  variant="outline"
                   size="sm"
                 >
                   Back to List
@@ -281,7 +421,7 @@ const SaleReversalDialog = () => {
               </div>
 
               <div className="flex gap-3">
-                <Button 
+                <Button
                   onClick={handleReverseSale}
                   disabled={loading || !reversalReason.trim()}
                   className="flex items-center gap-2"
@@ -289,8 +429,8 @@ const SaleReversalDialog = () => {
                   <Receipt className="w-4 h-4" />
                   {loading ? "Processing..." : "Reverse Sale & Generate Receipt"}
                 </Button>
-                <Button 
-                  onClick={() => setSelectedSale(null)} 
+                <Button
+                  onClick={() => setSelectedSale(null)}
                   variant="outline"
                 >
                   Cancel

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FileText, Receipt, FileSpreadsheet, Truck, Plus, Download, Search, Filter, Eye } from "lucide-react";
+import { FileText, Receipt, FileSpreadsheet, Truck, Plus, Download, Search, Filter, Eye, Undo2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import DocumentHistory from "./DocumentHistory";
 import ExternalReceiptsManager from "./ExternalReceiptsManager";
 import ProformaInvoiceManager from "./ProformaInvoiceManager";
 import BusinessNotes from "./BusinessNotes";
+import ReversalReceiptsHistory from "./ReversalReceiptsHistory";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -43,7 +44,7 @@ const RecentDocumentsList = () => {
       setLoading(false);
       return;
     }
-    
+
     try {
       // Fetch only issued documents from the documents table
       const { data: documentsData, error } = await supabase
@@ -70,6 +71,8 @@ const RecentDocumentsList = () => {
                 return { icon: Truck, color: 'bg-orange-500' };
               case 'purchase_order':
                 return { icon: FileSpreadsheet, color: 'bg-purple-500' };
+              case 'reversal_receipt':
+                return { icon: Undo2, color: 'bg-red-500' };
               default:
                 return { icon: FileText, color: 'bg-gray-500' };
             }
@@ -104,7 +107,7 @@ const RecentDocumentsList = () => {
   const handleViewDocument = async (docId: string) => {
     try {
       console.log('Attempting to view document:', docId);
-      
+
       const { data: document, error } = await supabase
         .from('documents')
         .select('*')
@@ -123,14 +126,14 @@ const RecentDocumentsList = () => {
         window.open(document.file_url, '_blank');
       } else if (document?.content) {
         // Create a properly formatted HTML document
-        const content = typeof document.content === 'string' 
-          ? JSON.parse(document.content) 
+        const content = typeof document.content === 'string'
+          ? JSON.parse(document.content)
           : document.content;
-          
+
         console.log('Document content:', content);
-        
+
         const htmlContent = createDocumentHTML(document, content);
-        
+
         const newWindow = window.open('', '_blank');
         if (newWindow) {
           newWindow.document.write(htmlContent);
@@ -160,7 +163,7 @@ const RecentDocumentsList = () => {
     const customer = content.customer || {};
     const items = content.items || [];
     const totals = content.totals || {};
-    
+
     return `
       <!DOCTYPE html>
       <html lang="en">
@@ -286,13 +289,13 @@ const RecentDocumentsList = () => {
         <div class="document-header">
           <div class="document-title">${document.document_type.replace('_', ' ')}</div>
           <div class="document-number">${document.document_number}</div>
-          <div class="document-date">Generated: ${new Date(document.created_at).toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}</div>
+          <div class="document-date">Generated: ${new Date(document.created_at).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}</div>
         </div>
 
         <div class="info-grid">
@@ -374,9 +377,9 @@ const RecentDocumentsList = () => {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
-    
+
     toast({
-      title: "Document Downloaded", 
+      title: "Document Downloaded",
       description: `${filename}.html has been downloaded to your device.`,
     });
   };
@@ -384,7 +387,7 @@ const RecentDocumentsList = () => {
   const handleDownloadDocument = async (docId: string) => {
     try {
       console.log('Attempting to download document:', docId);
-      
+
       const { data: document, error } = await supabase
         .from('documents')
         .select('*')
@@ -397,10 +400,10 @@ const RecentDocumentsList = () => {
       }
 
       if (document?.content) {
-        const content = typeof document.content === 'string' 
-          ? JSON.parse(document.content) 
+        const content = typeof document.content === 'string'
+          ? JSON.parse(document.content)
           : document.content;
-          
+
         const htmlContent = createDocumentHTML(document, content);
         downloadAsHTML(document.document_number, htmlContent);
       } else {
@@ -451,24 +454,24 @@ const RecentDocumentsList = () => {
                 </div>
               </div>
             </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => handleViewDocument(doc.id)}
-                  title="View Document"
-                >
-                  <Eye className="w-4 h-4" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => handleDownloadDocument(doc.id)}
-                  title="Download Document"
-                >
-                  <Download className="w-4 h-4" />
-                </Button>
-              </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleViewDocument(doc.id)}
+                title="View Document"
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDownloadDocument(doc.id)}
+                title="Download Document"
+              >
+                <Download className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         );
       })}
@@ -477,7 +480,7 @@ const RecentDocumentsList = () => {
 };
 
 const DocumentsSection = () => {
-  const [activeView, setActiveView] = useState<"overview" | "create" | "history" | "external-receipts" | "proforma-invoices" | "business-notes">("overview");
+  const [activeView, setActiveView] = useState<"overview" | "create" | "history" | "external-receipts" | "proforma-invoices" | "business-notes" | "reversal-receipts">("overview");
   const [selectedDocType, setSelectedDocType] = useState<string>("");
   const { toast } = useToast();
   const { generateFinancialStatement, generateSalesReport } = useReportsDownload();
@@ -579,6 +582,14 @@ const DocumentsSection = () => {
         </Button>
         <BusinessNotes />
       </div>
+    );
+  }
+
+  if (activeView === "reversal-receipts") {
+    return (
+      <ReversalReceiptsHistory
+        onBack={() => setActiveView("overview")}
+      />
     );
   }
 
@@ -690,7 +701,7 @@ const DocumentsSection = () => {
         <CardContent>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Keep track of business expenses, supplier receipts, and external purchases. 
+              Keep track of business expenses, supplier receipts, and external purchases.
               All tracked receipts contribute to your trust score and financial records.
             </p>
             <Button
@@ -726,6 +737,33 @@ const DocumentsSection = () => {
             >
               <Plus className="w-4 h-4" />
               Create Proforma Invoice
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reversal Receipts Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Undo2 className="w-5 h-5" />
+            Reversed Sales Receipts
+          </CardTitle>
+          <CardDescription>
+            Review receipts generated when sales are reversed
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Every sale reversal generates a dedicated receipt for your records. Access them here for quick reference and downloads.
+            </p>
+            <Button
+              onClick={() => setActiveView("reversal-receipts")}
+              className="w-full md:w-auto flex items-center gap-2"
+            >
+              <Undo2 className="w-4 h-4" />
+              View Reversal Receipts
             </Button>
           </div>
         </CardContent>

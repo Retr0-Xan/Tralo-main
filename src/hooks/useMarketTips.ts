@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
 
 interface MarketTip {
   title: string;
@@ -13,7 +14,9 @@ export const useMarketTips = () => {
   const [currentTip, setCurrentTip] = useState<MarketTip | null>(null);
   const { user } = useAuth();
 
-  const generatePersonalizedTips = async (): Promise<MarketTip[]> => {
+  const rotationRef = useRef<NodeJS.Timeout | null>(null);
+
+  const generatePersonalizedTips = useCallback(async (): Promise<MarketTip[]> => {
     if (!user) return [];
 
     try {
@@ -38,29 +41,33 @@ export const useMarketTips = () => {
         .eq('user_id', user.id);
 
       // Get recent sales
-      const { data: recentSales } = await supabase
+      const { data: recentSalesData } = await supabase
         .from('customer_purchases')
         .select('*')
         .eq('business_id', businessProfile.id)
         .gte('purchase_date', thirtyDaysAgo.toISOString());
 
       // Get today's sales
-      const { data: todaySales } = await supabase
+      const { data: todaySalesData } = await supabase
         .from('customer_purchases')
         .select('amount')
         .eq('business_id', businessProfile.id)
         .gte('purchase_date', today.toISOString().split('T')[0]);
 
       // Get this week's sales
-      const { data: weekSales } = await supabase
+      const { data: weekSalesData } = await supabase
         .from('customer_purchases')
         .select('amount')
         .eq('business_id', businessProfile.id)
         .gte('purchase_date', sevenDaysAgo.toISOString());
 
-      const todayTotal = todaySales?.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
-      const weekTotal = weekSales?.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
-      const monthTotal = recentSales?.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
+      const recentSales = (recentSalesData || []).filter((sale) => Number(sale.amount) > 0 && sale.payment_method !== 'reversed');
+      const todaySales = (todaySalesData || []).filter((sale) => Number(sale.amount) > 0);
+      const weekSales = (weekSalesData || []).filter((sale) => Number(sale.amount) > 0);
+
+      const todayTotal = todaySales.reduce((sum, sale) => sum + Number(sale.amount), 0);
+      const weekTotal = weekSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
+      const monthTotal = recentSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
 
       // 1. Daily Performance Tips
       if (todayTotal === 0) {
@@ -83,7 +90,7 @@ export const useMarketTips = () => {
       if (products && products.length > 0) {
         const outOfStock = products.filter(p => (p.current_stock || 0) === 0);
         const lowStock = products.filter(p => (p.current_stock || 0) > 0 && (p.current_stock || 0) <= 5);
-        
+
         if (outOfStock.length > 0) {
           tips.push({
             title: "Stock Alert",
@@ -102,7 +109,7 @@ export const useMarketTips = () => {
       }
 
       // 3. Sales Trends and Opportunities
-      if (recentSales && recentSales.length > 0) {
+      if (recentSales.length > 0) {
         // Find best-selling product
         const productSales = recentSales.reduce((acc, sale) => {
           const product = sale.product_name;
@@ -111,7 +118,7 @@ export const useMarketTips = () => {
         }, {} as Record<string, number>);
 
         const bestProduct = Object.entries(productSales)
-          .sort(([,a], [,b]) => b - a)[0];
+          .sort(([, a], [, b]) => b - a)[0];
 
         if (bestProduct && bestProduct[1] > monthTotal * 0.3) {
           tips.push({
@@ -156,47 +163,60 @@ export const useMarketTips = () => {
       console.error('Error generating personalized tips:', error);
       return [];
     }
-  };
+  }, [user]);
+
+  const loadTips = useCallback(async () => {
+    if (rotationRef.current) {
+      clearInterval(rotationRef.current);
+      rotationRef.current = null;
+    }
+
+    const tips = await generatePersonalizedTips();
+
+    if (tips.length === 0) {
+      setCurrentTip(null);
+      return;
+    }
+
+    const prioritizedTips = [
+      ...tips.filter(t => t.priority === 'high'),
+      ...tips.filter(t => t.priority === 'medium'),
+      ...tips.filter(t => t.priority === 'low')
+    ];
+
+    setCurrentTip(prioritizedTips[0]);
+
+    let currentIndex = 0;
+    rotationRef.current = setInterval(() => {
+      currentIndex = (currentIndex + 1) % prioritizedTips.length;
+      setCurrentTip(prioritizedTips[currentIndex]);
+    }, 12000);
+  }, [generatePersonalizedTips]);
 
   useEffect(() => {
-    const fetchTips = async () => {
-      const tips = await generatePersonalizedTips();
-      
-      if (tips.length > 0) {
-        // Prioritize tips by priority level
-        const prioritizedTips = [
-          ...tips.filter(t => t.priority === 'high'),
-          ...tips.filter(t => t.priority === 'medium'),
-          ...tips.filter(t => t.priority === 'low')
-        ];
-        
-        // Start with the highest priority tip
-        setCurrentTip(prioritizedTips[0]);
-        
-        // Rotate tips every 12 seconds
-        let currentIndex = 0;
-        const interval = setInterval(() => {
-          currentIndex = (currentIndex + 1) % prioritizedTips.length;
-          setCurrentTip(prioritizedTips[currentIndex]);
-        }, 12000);
-
-        return interval;
-      }
-      return null;
-    };
-
-    let cleanup: NodeJS.Timeout | null = null;
-    
     if (user) {
-      fetchTips().then((interval) => {
-        if (interval) cleanup = interval;
-      });
+      loadTips();
     }
 
     return () => {
-      if (cleanup) clearInterval(cleanup);
+      if (rotationRef.current) {
+        clearInterval(rotationRef.current);
+        rotationRef.current = null;
+      }
     };
-  }, [user]);
+  }, [user, loadTips]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const unsubscribe = subscribeToSalesDataUpdates(() => {
+      loadTips();
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [user, loadTips]);
 
   const getTipIcon = (type: string) => {
     switch (type) {

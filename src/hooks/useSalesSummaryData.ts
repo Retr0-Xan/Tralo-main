@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { subscribeToSalesDataUpdates } from '@/lib/sales-events';
 
 interface SummaryData {
   revenue: string;
@@ -24,12 +25,12 @@ export const useSalesSummaryData = () => {
   const [performanceInsights, setPerformanceInsights] = useState<PerformanceInsight[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const calculatePeriodData = async (startDate: Date, endDate: Date): Promise<SummaryData> => {
+  const calculatePeriodData = useCallback(async (startDate: Date, endDate: Date): Promise<SummaryData> => {
     try {
       if (!user) {
         return {
           revenue: "0.00",
-          cost: "0.00", 
+          cost: "0.00",
           expenses: "0.00",
           miscellaneous: "0.00",
           credit: "0.00",
@@ -74,16 +75,18 @@ export const useSalesSummaryData = () => {
         .lte('received_date', endDate.toISOString());
 
       // Calculate totals
-      const totalRevenue = sales?.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
-      
+      const validSales = (sales || []).filter((sale) => Number(sale.amount) > 0 && sale.payment_method !== 'reversed');
+
+      const totalRevenue = validSales.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
+
       console.log('=== Sales Summary Calculation Debug ===');
       console.log('Period:', startDate.toISOString(), 'to', endDate.toISOString());
       console.log('Total Revenue:', totalRevenue);
-      console.log('Sales count:', sales?.length || 0);
-      
+      console.log('Sales count:', validSales.length);
+
       // Separate credit and cash sales with proper partial payment tracking
-      const fullCreditSales = sales?.filter(sale => sale.payment_method === 'credit').reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
-      
+      const fullCreditSales = validSales.filter(sale => sale.payment_method === 'credit').reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
+
       // Get partial payment outstanding amounts from customer_sales table
       const { data: customerSales } = await supabase
         .from('customer_sales')
@@ -95,9 +98,9 @@ export const useSalesSummaryData = () => {
 
       // Calculate outstanding from partial payments (this would need more complex logic in real implementation)
       const partialPaymentOutstanding = customerSales?.reduce((sum, sale) => sum + (Number(sale.total_amount) * 0.5), 0) || 0; // Simplified - should track actual outstanding
-      
+
       const totalCreditOutstanding = fullCreditSales + partialPaymentOutstanding;
-      
+
       const inventoryCost = inventoryData?.reduce((sum, item) => sum + (Number(item.total_cost) || 0), 0) || 0;
       const operatingExpenses = expenses?.reduce((sum, expense) => sum + Number(expense.amount), 0) || 0;
       const miscellaneous = 0; // Can be calculated from other expense categories
@@ -106,9 +109,9 @@ export const useSalesSummaryData = () => {
       console.log('Inventory receipts count:', inventoryData?.length || 0);
       console.log('Operating Expenses:', operatingExpenses);
       console.log('Expenses count:', expenses?.length || 0);
-      
+
       const profit = totalRevenue - inventoryCost - operatingExpenses - miscellaneous;
-      
+
       console.log('Calculated Profit:', profit);
       console.log('Formula: Revenue(' + totalRevenue + ') - InventoryCost(' + inventoryCost + ') - Expenses(' + operatingExpenses + ')');
       console.log('======================================');
@@ -129,13 +132,13 @@ export const useSalesSummaryData = () => {
         revenue: "0.00",
         cost: "0.00",
         expenses: "0.00",
-        miscellaneous: "0.00", 
+        miscellaneous: "0.00",
         credit: "0.00",
         moneyOwed: "0.00",
         profit: "0.00"
       };
     }
-  };
+  }, [user]);
 
   const generatePerformanceInsights = (data: SummaryData, period: string) => {
     const insights: PerformanceInsight[] = [];
@@ -155,7 +158,7 @@ export const useSalesSummaryData = () => {
         });
       } else if (profitMargin > 15) {
         insights.push({
-          type: 'info', 
+          type: 'info',
           message: `📈 Good profit margin of ${profitMargin.toFixed(1)}%. Consider optimizing costs to improve further.`,
           icon: '📈'
         });
@@ -222,9 +225,9 @@ export const useSalesSummaryData = () => {
     return insights;
   };
 
-  const fetchSummaryData = async () => {
+  const fetchSummaryData = useCallback(async () => {
     setLoading(true);
-    
+
     try {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -270,17 +273,27 @@ export const useSalesSummaryData = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [calculatePeriodData]);
 
-  const refreshData = () => {
+  const refreshData = useCallback(() => {
     fetchSummaryData();
-  };
+  }, [fetchSummaryData]);
 
   useEffect(() => {
     if (user) {
       fetchSummaryData();
     }
-  }, [user]);
+  }, [user, fetchSummaryData]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const unsubscribe = subscribeToSalesDataUpdates(() => {
+      fetchSummaryData();
+    });
+    return unsubscribe;
+  }, [user, fetchSummaryData]);
 
   return {
     summaryData,

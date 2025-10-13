@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Users, DollarSign, X, Maximize2, Minimize2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
 
 const ClientValueRatioDisplay = () => {
   const { user } = useAuth();
@@ -17,68 +18,73 @@ const ClientValueRatioDisplay = () => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
 
-  useEffect(() => {
-    const calculateRatio = async () => {
-      if (!user) return;
+  const calculateRatio = useCallback(async () => {
+    if (!user) return;
 
-      try {
-        // Get business profile
-        const { data: businessProfile } = await supabase
-          .from('business_profiles')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle();
+    try {
+      setLoading(true);
+      const { data: businessProfile } = await supabase
+        .from('business_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-        if (!businessProfile) return;
-
-        // Get unique customers (client count) - including all sales, even without names
-        const { data: customers } = await supabase
-          .from('customer_purchases')
-          .select('customer_phone')
-          .eq('business_id', businessProfile.id)
-          .gte('purchase_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
-
-        // Get total sales value for the month
-        const { data: sales } = await supabase
-          .from('customer_purchases')
-          .select('amount')
-          .eq('business_id', businessProfile.id)
-          .gte('purchase_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
-
-        if (customers && sales) {
-          // Count all sales as separate clients, including walk-ins and unnamed customers
-          const uniqueCustomers = customers.length; // Each purchase counts as a client interaction
-          const totalValue = sales.reduce((sum, sale) => sum + Number(sale.amount), 0);
-          const ratio = uniqueCustomers > 0 ? totalValue / uniqueCustomers : 0;
-
-          setRatioData({
-            clientCount: uniqueCustomers,
-            totalSalesValue: totalValue,
-            ratio: ratio
-          });
-
-          // Update database with the ratio
-          await supabase
-            .from('client_value_ratios')
-            .upsert({
-              user_id: user.id,
-              date: new Date().toISOString().split('T')[0],
-              client_count: uniqueCustomers,
-              total_sales_value: totalValue,
-              ratio: ratio
-            }, {
-              onConflict: 'user_id,date'
-            });
-        }
-      } catch (error) {
-        console.error('Error calculating client-value ratio:', error);
-      } finally {
+      if (!businessProfile) {
         setLoading(false);
+        return;
       }
-    };
 
-    calculateRatio();
+      const { data: sales } = await supabase
+        .from('customer_purchases')
+        .select('customer_phone, amount')
+        .eq('business_id', businessProfile.id)
+        .gte('purchase_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+
+      if (sales) {
+        const filteredSales = sales.filter((sale) => Number(sale.amount) > 0);
+
+        const uniqueCustomers = filteredSales.length;
+        const totalValue = filteredSales.reduce((sum, sale) => sum + Number(sale.amount), 0);
+        const ratio = uniqueCustomers > 0 ? totalValue / uniqueCustomers : 0;
+
+        setRatioData({
+          clientCount: uniqueCustomers,
+          totalSalesValue: totalValue,
+          ratio: ratio
+        });
+
+        await supabase
+          .from('client_value_ratios')
+          .upsert({
+            user_id: user.id,
+            date: new Date().toISOString().split('T')[0],
+            client_count: uniqueCustomers,
+            total_sales_value: totalValue,
+            ratio: ratio
+          }, {
+            onConflict: 'user_id,date'
+          });
+      }
+    } catch (error) {
+      console.error('Error calculating client-value ratio:', error);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    calculateRatio();
+  }, [calculateRatio]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const unsubscribe = subscribeToSalesDataUpdates(() => {
+      calculateRatio();
+    });
+    return unsubscribe;
+  }, [user, calculateRatio]);
 
   const getRatioColor = (ratio: number) => {
     if (ratio >= 100) return "text-emerald-600 dark:text-emerald-400";
@@ -160,7 +166,7 @@ const ClientValueRatioDisplay = () => {
               <div className="font-semibold">{ratioData.clientCount}</div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <DollarSign className="w-3 h-3 text-muted-foreground" />
             <div>
