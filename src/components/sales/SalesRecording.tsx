@@ -314,6 +314,7 @@ const SalesRecording = () => {
             product_name: item.productName,
             customer_phone: customerPhone || 'walk-in',
             amount: item.total,
+            quantity: item.quantity,
             payment_method: resolvedPaymentMethod,
             purchase_date: saleTimestamp,
           })
@@ -352,65 +353,13 @@ const SalesRecording = () => {
         }
 
         if (item.isFromInventory) {
-          const { data: productRecord, error: productFetchError } = await supabase
-            .from('user_products')
-            .select('id, current_stock, total_sales_this_month, product_name')
-            .eq('user_id', user!.id)
-            .eq('product_name', item.productName)
-            .maybeSingle();
-
-          if (productFetchError) {
-            console.error('Error fetching product for stock update:', productFetchError);
-            throw productFetchError;
-          }
-
-          if (productRecord) {
-            const updatedStock = Math.max(0, Number(productRecord.current_stock ?? 0) - item.quantity);
-            const updatedSalesTotal = Number(productRecord.total_sales_this_month ?? 0) + item.total;
-
-            const { error: movementError } = await supabase
-              .from('inventory_movements')
-              .insert({
-                user_id: user!.id,
-                product_name: productRecord.product_name,
-                movement_type: 'sold',
-                quantity: item.quantity,
-                unit_price: item.unitPrice,
-                selling_price: item.unitPrice,
-                movement_date: saleTimestamp,
-                customer_id: customerId,
-                sale_id: purchaseRecord?.id || null,
-                notes: customerName ? `Sold to ${customerName}` : null,
-              });
-
-            if (movementError) {
-              console.error('Error recording inventory movement:', movementError);
-              throw movementError;
-            }
-
-            const { error: productUpdateError } = await supabase
-              .from('user_products')
-              .update({
-                current_stock: updatedStock,
-                total_sales_this_month: updatedSalesTotal,
-                last_sale_date: saleTimestamp,
-                updated_at: saleTimestamp,
-              })
-              .eq('id', productRecord.id);
-
-            if (productUpdateError) {
-              console.error('Error updating product stock:', productUpdateError);
-              throw productUpdateError;
-            }
-
-            setInventoryProducts((prev) =>
-              prev.map((product) =>
-                product.id === productRecord.id
-                  ? { ...product, current_stock: updatedStock }
-                  : product
-              )
-            );
-          }
+          setInventoryProducts((prev) =>
+            prev.map((product) =>
+              product.product_name === item.productName
+                ? { ...product, current_stock: Math.max(0, Number(product.current_stock ?? 0) - item.quantity) }
+                : product
+            )
+          );
         }
       }
 

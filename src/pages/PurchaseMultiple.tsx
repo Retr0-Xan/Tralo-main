@@ -23,7 +23,7 @@ const PurchaseMultiple = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const businessId = searchParams.get('business_id'); // Updated to match QR code parameter
-  
+
   const [businessProfile, setBusinessProfile] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
@@ -82,7 +82,7 @@ const PurchaseMultiple = () => {
   };
 
   const updateProduct = (index: number, field: keyof Product, value: string | number) => {
-    const updatedProducts = products.map((product, i) => 
+    const updatedProducts = products.map((product, i) =>
       i === index ? { ...product, [field]: value } : product
     );
     setProducts(updatedProducts);
@@ -125,13 +125,14 @@ const PurchaseMultiple = () => {
       // Save each product purchase to database
       for (const product of validProducts) {
         const productTotal = parseFloat(product.amount) * product.quantity;
-        
+
         const { data: saleData, error: saleError } = await supabase
           .from('customer_purchases')
           .insert({
             business_id: businessProfile.id,
             product_name: product.name,
             amount: productTotal,
+            quantity: product.quantity,
             customer_phone: customerData.customerPhone || 'Walk-in Customer',
             payment_method: customerData.paymentMethod,
             purchase_date: new Date().toISOString(),
@@ -346,7 +347,7 @@ const PurchaseMultiple = () => {
                     Add Product
                   </Button>
                 </div>
-                
+
                 {products.map((product, index) => (
                   <Card key={index} className="p-4 bg-muted/30">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -395,7 +396,7 @@ const PurchaseMultiple = () => {
                     </div>
                   </Card>
                 ))}
-                
+
                 <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
                   <div className="flex justify-between items-center text-lg font-bold">
                     <span>Total Amount:</span>
@@ -407,30 +408,30 @@ const PurchaseMultiple = () => {
               {/* Customer Information */}
               <div className="space-y-4">
                 <Label className="text-base font-medium">Customer Information</Label>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label>Your Name (Optional)</Label>
-                    <Input 
+                    <Input
                       placeholder="Your name"
                       value={customerData.customerName}
-                      onChange={(e) => setCustomerData(prev => ({...prev, customerName: e.target.value}))}
+                      onChange={(e) => setCustomerData(prev => ({ ...prev, customerName: e.target.value }))}
                     />
                   </div>
 
                   <div>
                     <Label>Phone Number (Optional)</Label>
-                    <Input 
+                    <Input
                       placeholder="Your phone number"
                       value={customerData.customerPhone}
-                      onChange={(e) => setCustomerData(prev => ({...prev, customerPhone: e.target.value}))}
+                      onChange={(e) => setCustomerData(prev => ({ ...prev, customerPhone: e.target.value }))}
                     />
                   </div>
                 </div>
 
                 <div>
                   <Label>Payment Method</Label>
-                  <Select onValueChange={(value) => setCustomerData(prev => ({...prev, paymentMethod: value}))}>
+                  <Select onValueChange={(value) => setCustomerData(prev => ({ ...prev, paymentMethod: value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select payment method" />
                     </SelectTrigger>
@@ -445,16 +446,16 @@ const PurchaseMultiple = () => {
 
                 <div>
                   <Label>Notes (Optional)</Label>
-                  <Textarea 
+                  <Textarea
                     placeholder="Additional notes"
                     value={customerData.notes}
-                    onChange={(e) => setCustomerData(prev => ({...prev, notes: e.target.value}))}
+                    onChange={(e) => setCustomerData(prev => ({ ...prev, notes: e.target.value }))}
                   />
                 </div>
               </div>
 
-              <Button 
-                onClick={handleSubmitPurchase} 
+              <Button
+                onClick={handleSubmitPurchase}
                 className="w-full"
                 disabled={loading || getTotalAmount() === 0}
               >
@@ -498,7 +499,7 @@ const PurchaseMultiple = () => {
                     <span>¢{((parseFloat(product.amount) || 0) * product.quantity).toFixed(2)}</span>
                   </div>
                 ))}
-                
+
                 <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2">
                   <span>Total:</span>
                   <span>¢{receiptData.total.toFixed(2)}</span>

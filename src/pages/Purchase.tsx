@@ -17,7 +17,7 @@ const Purchase = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const businessId = searchParams.get('b');
-  
+
   const [businessProfile, setBusinessProfile] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
@@ -43,7 +43,7 @@ const Purchase = () => {
 
       try {
         console.log('Fetching business profile for ID:', businessId);
-        
+
         const { data: profileData, error } = await supabase
           .from('business_profiles')
           .select('*')
@@ -95,6 +95,7 @@ const Purchase = () => {
           business_id: businessProfile.id,
           product_name: purchaseData.productName,
           amount: parseFloat(purchaseData.amount),
+          quantity: 1,
           customer_phone: purchaseData.customerPhone || 'Walk-in Customer',
           payment_method: purchaseData.paymentMethod,
           purchase_date: new Date().toISOString(),
@@ -294,7 +295,7 @@ const Purchase = () => {
             <CardContent className="space-y-4">
               <div>
                 <Label>Product/Service</Label>
-                <Input 
+                <Input
                   placeholder="What did you buy?"
                   value={purchaseData.productName}
                   onChange={(e) => handleInputChange("productName", e.target.value)}
@@ -303,7 +304,7 @@ const Purchase = () => {
 
               <div>
                 <Label>Amount (¢)</Label>
-                <Input 
+                <Input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
@@ -314,7 +315,7 @@ const Purchase = () => {
 
               <div>
                 <Label>Your Name (Optional)</Label>
-                <Input 
+                <Input
                   placeholder="Your name"
                   value={purchaseData.customerName}
                   onChange={(e) => handleInputChange("customerName", e.target.value)}
@@ -323,7 +324,7 @@ const Purchase = () => {
 
               <div>
                 <Label>Phone Number (Optional)</Label>
-                <Input 
+                <Input
                   placeholder="Your phone number"
                   value={purchaseData.customerPhone}
                   onChange={(e) => handleInputChange("customerPhone", e.target.value)}
@@ -347,7 +348,7 @@ const Purchase = () => {
 
               <div>
                 <Label>Notes (Optional)</Label>
-                <Textarea 
+                <Textarea
                   placeholder="Additional notes"
                   value={purchaseData.notes}
                   onChange={(e) => handleInputChange("notes", e.target.value)}
@@ -355,15 +356,15 @@ const Purchase = () => {
               </div>
 
               <div className="flex gap-2">
-                <Button 
+                <Button
                   onClick={() => navigate(`/purchase-multiple?b=${businessId}`)}
-                  variant="outline" 
+                  variant="outline"
                   className="flex-1"
                 >
                   Multiple Products
                 </Button>
-                <Button 
-                  onClick={handleSubmitPurchase} 
+                <Button
+                  onClick={handleSubmitPurchase}
                   className="flex-1"
                   disabled={loading}
                 >

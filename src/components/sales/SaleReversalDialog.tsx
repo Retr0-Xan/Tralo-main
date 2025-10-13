@@ -193,6 +193,7 @@ const SaleReversalDialog = () => {
         .from('customer_purchases')
         .update({
           amount: 0,
+          quantity: 0,
           payment_method: 'reversed'
         })
         .eq('id', selectedSale.id);
