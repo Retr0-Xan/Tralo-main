@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import logoLight from "@/assets/tralo-new-removebg-preview.png";
+import logoLight from "@/assets/tralo-new-zoom-removebg-preview.png";
 import logoDark from "@/assets/tralo-logo-dark-mode-removebg-preview.png";
 
 interface TraloLogoProps {
