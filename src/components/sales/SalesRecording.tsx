@@ -523,21 +523,7 @@ const SalesRecording = () => {
       setSelectedProduct(value);
       const inventoryItem = inventoryProducts.find(p => p.product_name === value);
       if (inventoryItem) {
-        // Try to get last sale price for this product
-        try {
-          const { data: lastSale } = await supabase
-            .from('customer_purchases')
-            .select('amount')
-            .eq('product_name', value)
-            .order('purchase_date', { ascending: false })
-            .limit(1)
-            .single();
-
-          setUnitPrice(lastSale?.amount || inventoryItem.selling_price || 0);
-        } catch (error) {
-          // Fallback to inventory selling price
-          setUnitPrice(inventoryItem.selling_price || 0);
-        }
+        setUnitPrice(Number(inventoryItem.selling_price ?? 0));
       }
     }
   };
@@ -639,11 +625,16 @@ const SalesRecording = () => {
                     min="0"
                     step="0.01"
                     value={unitPrice}
-                    onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)}
+                    readOnly={!isCustomProduct}
+                    onChange={(e) => {
+                      if (isCustomProduct) {
+                        setUnitPrice(parseFloat(e.target.value) || 0);
+                      }
+                    }}
                   />
                   {!isCustomProduct && selectedProduct && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Auto-filled from last sale price
+                      Pulled from inventory selling price
                     </p>
                   )}
                 </div>
