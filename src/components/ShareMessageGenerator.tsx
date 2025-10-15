@@ -33,10 +33,10 @@ const ShareMessageGenerator: React.FC<ShareMessageGeneratorProps> = ({
 
   const generateMessage = () => {
     const title = type === 'sales' ? "Today's Prices" : "Available Items";
-    const itemsList = items.slice(0, 10).map(item => 
+    const itemsList = items.slice(0, 10).map(item =>
       `${item.name}${item.unit ? ` - ¢${item.price}/${item.unit}` : ` - ¢${item.price}`}`
     ).join('\n');
-    
+
     const message = `${title} - ${businessName} (via Tralo)
 
 ${itemsList}${items.length > 10 ? '\n...and more items available!' : ''}
@@ -53,7 +53,7 @@ ${customMessage ? `\n${customMessage}` : ''}`;
   const copyToClipboard = async () => {
     const message = generateMessage();
     await navigator.clipboard.writeText(message);
-    
+
     toast({
       title: "Message Copied",
       description: "Message copied to clipboard. You can now paste it anywhere.",
@@ -77,7 +77,6 @@ ${customMessage ? `\n${customMessage}` : ''}`;
     const success = await shareViaWhatsApp({
       message,
       maxLength: 1000,
-      useWebVersion: true,
       delay: 150
     });
 
@@ -99,7 +98,7 @@ ${customMessage ? `\n${customMessage}` : ''}`;
 
   const shareNatively = async () => {
     const message = generateMessage();
-    
+
     if (navigator.share) {
       try {
         await navigator.share({
@@ -150,17 +149,17 @@ ${customMessage ? `\n${customMessage}` : ''}`;
             <MessageCircle className="w-4 h-4" />
             WhatsApp
           </Button>
-          
+
           <Button onClick={shareViaSMS} variant="outline" className="flex items-center gap-2">
             <Send className="w-4 h-4" />
             SMS
           </Button>
-          
+
           <Button onClick={copyToClipboard} variant="outline" className="flex items-center gap-2">
             <Copy className="w-4 h-4" />
             Copy
           </Button>
-          
+
           <Button onClick={shareNatively} variant="outline" className="flex items-center gap-2">
             <Share2 className="w-4 h-4" />
             Share

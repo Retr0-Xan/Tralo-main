@@ -254,7 +254,6 @@ const CustomerPurchase = () => {
     const success = await shareViaWhatsApp({
       message,
       maxLength: 1000,
-      useWebVersion: true,
       delay: 200
     });
 

@@ -30,7 +30,7 @@ const OrderStockDialog = ({
 }: OrderStockDialogProps) => {
   const { toast } = useToast();
   const { generatePurchaseOrder, generateOrderMessage } = usePurchaseOrder();
-  
+
   const [orderProduct, setOrderProduct] = useState("");
   const [orderQuantity, setOrderQuantity] = useState("");
   const [supplierName, setSupplierName] = useState("");
@@ -81,16 +81,15 @@ const OrderStockDialog = ({
     });
 
     const encodedMessage = encodeURIComponent(message);
-    
+
     switch (method) {
       case 'whatsapp':
         const success = await shareViaWhatsApp({
           message,
           maxLength: 800,
-          useWebVersion: true,
           delay: 100
         });
-        
+
         if (!success) {
           toast({
             title: "WhatsApp Share",
@@ -106,7 +105,7 @@ const OrderStockDialog = ({
         window.open(`mailto:${supplierEmail || ''}?subject=${subject}&body=${encodedMessage}`, '_blank');
         break;
     }
-    
+
     toast({
       title: "Sharing Options Opened",
       description: `${method.charAt(0).toUpperCase() + method.slice(1)} sharing options have been opened.`,
@@ -257,7 +256,7 @@ const OrderStockDialog = ({
             <Button
               onClick={handleGenerateDocument}
               className="flex-1"
-                  disabled={!orderProduct || !orderQuantity || !supplierName}
+              disabled={!orderProduct || !orderQuantity || !supplierName}
             >
               <FileText className="w-4 h-4 mr-2" />
               Generate Purchase Order

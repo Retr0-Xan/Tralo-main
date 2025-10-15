@@ -64,7 +64,7 @@ const BusinessCardGenerator: React.FC<BusinessCardGeneratorProps> = ({
 
   const shareBusinessCard = async () => {
     const cardText = `${businessName}\n${location}\n\n${products.slice(0, 3).join(' • ')}\n\n📞 ${phoneNumber}\n💬 ${whatsAppNumber || phoneNumber}\n\n✅ Tralo Verified`;
-    
+
     if (navigator.share) {
       try {
         await navigator.share({
@@ -101,7 +101,6 @@ const BusinessCardGenerator: React.FC<BusinessCardGeneratorProps> = ({
     const success = await shareViaWhatsApp({
       message,
       maxLength: 800,
-      useWebVersion: true,
       delay: 200
     });
 
@@ -116,7 +115,7 @@ const BusinessCardGenerator: React.FC<BusinessCardGeneratorProps> = ({
   return (
     <div className="space-y-4">
       {/* Business Card Preview */}
-      <div 
+      <div
         ref={cardRef}
         className="w-[400px] h-[240px] bg-white border-2 border-gray-200 rounded-lg shadow-lg p-6 mx-auto"
         style={{ fontFamily: 'Arial, sans-serif' }}
@@ -127,7 +126,7 @@ const BusinessCardGenerator: React.FC<BusinessCardGeneratorProps> = ({
             <p className="text-gray-600 mb-4">{location}</p>
             <p className="text-black font-medium">{products.slice(0, 3).join(' • ')}</p>
           </div>
-          
+
           <div className="flex justify-between items-end">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-black">
@@ -139,7 +138,7 @@ const BusinessCardGenerator: React.FC<BusinessCardGeneratorProps> = ({
                 <span>{whatsAppNumber || phoneNumber}</span>
               </div>
             </div>
-            
+
             <Badge className="bg-green-100 text-green-800 border-green-300">
               <span className="text-green-600 mr-1">✓</span>
               Tralo Verified
