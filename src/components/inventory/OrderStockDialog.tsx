@@ -49,7 +49,7 @@ const OrderStockDialog = ({
       return;
     }
 
-    const poNumber = await generatePurchaseOrder({
+    const purchaseOrder = await generatePurchaseOrder({
       productName: orderProduct,
       quantity: parseInt(orderQuantity),
       supplierName,
@@ -59,7 +59,7 @@ const OrderStockDialog = ({
       notes: orderNotes || undefined
     });
 
-    if (poNumber) {
+    if (purchaseOrder?.poNumber) {
       resetForm();
     }
   };

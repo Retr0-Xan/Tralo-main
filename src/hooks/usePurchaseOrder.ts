@@ -6,18 +6,23 @@ export const usePurchaseOrder = () => {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const generatePurchaseOrder = async (orderData: {
-    productName: string;
-    quantity: number;
-    supplierName: string;
-    supplierEmail?: string;
-    supplierPhone?: string;
-    estimatedCost?: number;
-    notes?: string;
-  }) => {
+  const generatePurchaseOrder = async (
+    orderData: {
+      productName: string;
+      quantity: number;
+      supplierName: string;
+      supplierEmail?: string;
+      supplierPhone?: string;
+      estimatedCost?: number;
+      notes?: string;
+    },
+    options: { download?: boolean } = {}
+  ): Promise<{ poNumber: string; html: string } | null> => {
     if (!user) return null;
 
     try {
+      const { download = true } = options;
+
       // Get business profile
       const { data: businessProfile } = await supabase
         .from('business_profiles')
@@ -37,7 +42,7 @@ export const usePurchaseOrder = () => {
       // Generate purchase order number
       const poNumber = `PO-${Date.now().toString().slice(-6)}`;
       const orderDate = new Date().toISOString().split('T')[0];
-      
+
       // Generate HTML purchase order
       const purchaseOrderHtml = `
         <!DOCTYPE html>

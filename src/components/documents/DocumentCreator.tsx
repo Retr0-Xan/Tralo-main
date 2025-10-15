@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import PurchaseOrderCreator from "./PurchaseOrderCreator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocumentShare } from "@/hooks/useDocumentShare";
@@ -37,6 +38,15 @@ interface StockItem {
 }
 
 const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorProps) => {
+  if (documentType === "purchase_order") {
+    return (
+      <PurchaseOrderCreator
+        onBack={onBack}
+        onSuccess={onSuccess}
+      />
+    );
+  }
+
   const { toast } = useToast();
   const { user } = useAuth();
   const [formData, setFormData] = useState({
@@ -52,11 +62,11 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
     includeVAT: false, // VAT is optional for informal traders
     overallDiscount: 0 // Overall document discount
   });
-  
+
   const [items, setItems] = useState<DocumentItem[]>([
     { description: "", quantity: 1, unitPrice: 0, discount: 0, total: 0, isFromStock: false }
   ]);
-  
+
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -72,7 +82,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
         .order('product_name');
 
       if (error) throw error;
-      
+
       // Mock data with prices for demo if no real data
       const mockStock: StockItem[] = [
         { id: '1', product_name: 'Rice (50kg bag)', current_stock: 25, unit_price: 180.00 },
@@ -81,7 +91,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
         { id: '4', product_name: 'Onions (bag)', current_stock: 8, unit_price: 35.00 },
         { id: '5', product_name: 'Cooking Oil (5L)', current_stock: 15, unit_price: 55.00 },
       ];
-      
+
       setStockItems(data?.length ? data : mockStock);
     } catch (error) {
       console.error('Error fetching stock items:', error);
@@ -118,7 +128,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
     const updatedItems = items.map((item, i) => {
       if (i === index) {
         const updatedItem = { ...item, [field]: value };
-        
+
         // If selecting a product from stock, auto-populate price
         if (field === 'description' && typeof value === 'string') {
           const stockItem = stockItems.find(stock => stock.product_name === value);
@@ -131,7 +141,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
             updatedItem.productId = undefined;
           }
         }
-        
+
         if (field === 'quantity' || field === 'unitPrice' || field === 'discount') {
           const subtotal = updatedItem.quantity * updatedItem.unitPrice;
           const discountAmount = updatedItem.discount * updatedItem.quantity;
@@ -235,7 +245,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
               <Input
                 id="documentNumber"
                 value={formData.documentNumber}
-                onChange={(e) => setFormData({...formData, documentNumber: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, documentNumber: e.target.value })}
               />
             </div>
             <div>
@@ -244,7 +254,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
                 id="date"
                 type="date"
                 value={formData.date}
-                onChange={(e) => setFormData({...formData, date: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               />
             </div>
           </div>
@@ -261,7 +271,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
                 <Input
                   id="customerName"
                   value={formData.customerName}
-                  onChange={(e) => setFormData({...formData, customerName: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
                   required
                 />
               </div>
@@ -270,7 +280,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
                 <Input
                   id="customerPhone"
                   value={formData.customerPhone}
-                  onChange={(e) => setFormData({...formData, customerPhone: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
                 />
               </div>
             </div>
@@ -279,7 +289,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
               <Textarea
                 id="customerAddress"
                 value={formData.customerAddress}
-                onChange={(e) => setFormData({...formData, customerAddress: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
                 rows={2}
               />
             </div>
@@ -296,7 +306,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
                 Add Item
               </Button>
             </div>
-            
+
             <div className="space-y-3">
               {items.map((item, index) => (
                 <div key={index} className="space-y-2">
@@ -322,7 +332,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
                           <div className="absolute -bottom-5 left-0">
                             <span className="text-xs text-green-600">
                               ✓ From stock
-                              {stockItems.find(s => s.product_name === item.description)?.current_stock === 0 && 
+                              {stockItems.find(s => s.product_name === item.description)?.current_stock === 0 &&
                                 " (Out of stock)"
                               }
                             </span>
@@ -415,7 +425,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
                     min="0"
                     step="0.01"
                     value={formData.overallDiscount}
-                    onChange={(e) => setFormData({...formData, overallDiscount: parseFloat(e.target.value) || 0})}
+                    onChange={(e) => setFormData({ ...formData, overallDiscount: parseFloat(e.target.value) || 0 })}
                     className="w-24 h-8"
                     placeholder="0.00"
                   />
@@ -436,10 +446,10 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
               <Switch
                 id="includeVAT"
                 checked={formData.includeVAT}
-                onCheckedChange={(checked) => setFormData({...formData, includeVAT: checked})}
+                onCheckedChange={(checked) => setFormData({ ...formData, includeVAT: checked })}
               />
             </div>
-            
+
             {/* Totals */}
             <div className="flex justify-end">
               <div className="w-64 space-y-2">
@@ -466,7 +476,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
                 {(items.some(item => item.discount > 0) || formData.overallDiscount > 0) && (
                   <div className="text-xs text-green-600 text-right">
                     Total Savings: ¢{(
-                      items.reduce((sum, item) => sum + (item.discount * item.quantity), 0) + 
+                      items.reduce((sum, item) => sum + (item.discount * item.quantity), 0) +
                       formData.overallDiscount
                     ).toFixed(2)}
                   </div>
@@ -481,7 +491,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
               <Label htmlFor="paymentTerms">Payment Terms</Label>
               <Select
                 value={formData.paymentTerms}
-                onValueChange={(value) => setFormData({...formData, paymentTerms: value})}
+                onValueChange={(value) => setFormData({ ...formData, paymentTerms: value })}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -501,7 +511,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
                   id="dueDate"
                   type="date"
                   value={formData.dueDate}
-                  onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                 />
               </div>
             )}
@@ -512,7 +522,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
             <Textarea
               id="notes"
               value={formData.notes}
-              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               placeholder="Additional notes or terms..."
               rows={3}
             />
