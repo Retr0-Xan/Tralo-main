@@ -155,23 +155,27 @@ export const usePurchaseOrder = () => {
         </html>
       `;
 
-      // Create blob and download
-      const blob = new Blob([purchaseOrderHtml], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `purchase_order_${poNumber}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      if (download) {
+        const blob = new Blob([purchaseOrderHtml], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `purchase_order_${poNumber}.html`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
 
-      toast({
-        title: "📋 Purchase Order Generated!",
-        description: "Purchase order has been downloaded successfully.",
-      });
+        toast({
+          title: "📋 Purchase Order Generated!",
+          description: "Purchase order has been downloaded successfully.",
+        });
+      }
 
-      return poNumber;
+      return {
+        poNumber,
+        html: purchaseOrderHtml,
+      };
     } catch (error) {
       console.error('Error generating purchase order:', error);
       toast({

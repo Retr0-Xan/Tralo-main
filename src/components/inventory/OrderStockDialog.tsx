@@ -10,6 +10,8 @@ import { MessageCircle, Mail, FileText, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePurchaseOrder } from "@/hooks/usePurchaseOrder";
 import { shareViaWhatsApp } from "@/lib/whatsapp";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface InventoryItem {
   id: string;
@@ -30,6 +32,7 @@ const OrderStockDialog = ({
 }: OrderStockDialogProps) => {
   const { toast } = useToast();
   const { generatePurchaseOrder, generateOrderMessage } = usePurchaseOrder();
+  const { user } = useAuth();
 
   const [orderProduct, setOrderProduct] = useState("");
   const [orderQuantity, setOrderQuantity] = useState("");
@@ -60,6 +63,49 @@ const OrderStockDialog = ({
     });
 
     if (purchaseOrder?.poNumber) {
+      if (user?.id) {
+        try {
+          const totalEstimate = estimatedCost && orderQuantity
+            ? parseFloat(estimatedCost) * parseInt(orderQuantity)
+            : 0;
+
+          await supabase.from("documents").insert({
+            document_type: "purchase_order",
+            document_number: purchaseOrder.poNumber,
+            title: `Purchase Order - ${orderProduct}`,
+            content: {
+              poNumber: purchaseOrder.poNumber,
+              supplier: {
+                name: supplierName,
+                email: supplierEmail || null,
+                phone: supplierPhone || null,
+              },
+              product: {
+                name: orderProduct,
+                quantity: parseInt(orderQuantity),
+                estimatedUnitCost: estimatedCost ? parseFloat(estimatedCost) : null,
+                estimatedTotalCost: totalEstimate || null,
+              },
+              notes: orderNotes || null,
+              generatedAt: new Date().toISOString(),
+              html: purchaseOrder.html,
+              source: "inventory-order-stock",
+            },
+            status: "issued",
+            total_amount: totalEstimate || 0,
+            customer_name: supplierName,
+            user_id: user.id,
+          });
+        } catch (error) {
+          console.error("Error saving purchase order document:", error);
+          toast({
+            title: "Document Save Failed",
+            description: "Generated purchase order downloaded but could not be saved to Documents.",
+            variant: "destructive",
+          });
+        }
+      }
+
       resetForm();
     }
   };
