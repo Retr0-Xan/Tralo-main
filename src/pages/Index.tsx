@@ -37,7 +37,7 @@ const Index = () => {
     <div className="space-y-6">
       <PageHeader
         icon={LayoutDashboard}
-        title="Operations Control Center"
+        title="Dashboard"
         description={`Welcome back, ${ownerName}. Review today's performance and next steps.`}
         actions={<TrustScoreBadge size="md" />}
       />
