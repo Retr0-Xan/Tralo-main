@@ -2,19 +2,6 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
-function getCurrentMonthRange() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth(); // 0 = January
-
-  const start = new Date(year, month, 1);
-  const end = new Date(year, month + 1, 0);
-
-  return {
-    start: start.toISOString(),
-    end: end.toISOString()
-  };
-}
 
 interface SalesGoal {
   id: string;
@@ -35,8 +22,7 @@ export const useSalesGoals = () => {
 
     try {
       setLoading(true);
-      const now = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
-
+      const now = new Date().toISOString().split('T')[0];
       const { data, error } = await supabase
         .from('sales_goals')
         .select('*')
@@ -47,16 +33,24 @@ export const useSalesGoals = () => {
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
-      const { start, end } = getCurrentMonthRange();
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
+        if (error.code === 'PGRST116') {
+          setCurrentGoal(null);
+          return;
+        }
         console.error('Error fetching sales goal:', error);
+        return;
+      }
+
+      if (!data) {
+        setCurrentGoal(null);
         return;
       }
 
       setCurrentGoal({
         ...data,
-        period_start: start,
-        period_end: end
+        period_start: data.period_start?.split('T')[0] ?? data.period_start,
+        period_end: data.period_end?.split('T')[0] ?? data.period_end
       });
     } catch (error) {
       console.error('Error fetching sales goal:', error);
@@ -97,7 +91,11 @@ export const useSalesGoals = () => {
         return null;
       }
 
-      setCurrentGoal(data);
+      setCurrentGoal({
+        ...data,
+        period_start: data.period_start?.split('T')[0] ?? data.period_start,
+        period_end: data.period_end?.split('T')[0] ?? data.period_end
+      });
       toast.success('Sales goal created successfully!');
       return data;
     } catch (error) {
@@ -108,7 +106,10 @@ export const useSalesGoals = () => {
   };
 
   const updateGoal = async (goalId: string, updates: Partial<SalesGoal>) => {
-    if (!user) return null;
+    if (!user || !goalId) {
+      toast.error('Failed to update sales goal');
+      return null;
+    }
 
     try {
       const { data, error } = await supabase
@@ -125,7 +126,11 @@ export const useSalesGoals = () => {
         return null;
       }
 
-      setCurrentGoal(data);
+      setCurrentGoal({
+        ...data,
+        period_start: data.period_start?.split('T')[0] ?? data.period_start,
+        period_end: data.period_end?.split('T')[0] ?? data.period_end
+      });
       toast.success('Sales goal updated successfully!');
       return data;
     } catch (error) {
