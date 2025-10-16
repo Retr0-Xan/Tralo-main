@@ -17,7 +17,17 @@ interface TradeInsight {
   created_at: string;
 }
 
-const TradeIndexInsights = () => {
+interface TradeIndexInsightsProps {
+  title?: string;
+  description?: string;
+  showAnalyzeButton?: boolean;
+}
+
+const TradeIndexInsights = ({
+  title = "Trade & Inventory Insights",
+  description = "Market intelligence and inventory flow analysis based on your business data",
+  showAnalyzeButton = true,
+}: TradeIndexInsightsProps) => {
   const [insights, setInsights] = useState<TradeInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -26,7 +36,7 @@ const TradeIndexInsights = () => {
   useEffect(() => {
     if (user) {
       fetchInsights();
-      
+
       // Set up real-time updates for insights
       const channel = supabase
         .channel('trade-insights-changes')
@@ -70,15 +80,15 @@ const TradeIndexInsights = () => {
       const { data, error } = await supabase.functions.invoke('supply-chain-analyzer', {
         body: { user_id: user.id }
       });
-      
+
       if (error) throw error;
-      
+
       if (data) {
         toast({
           title: "Analysis complete",
           description: `Generated ${data.insights?.length || 0} new inventory insights`,
         });
-        
+
         // Refresh insights after analysis
         fetchInsights();
       }
@@ -125,9 +135,9 @@ const TradeIndexInsights = () => {
 
       if (error) throw error;
 
-      setInsights(prev => 
-        prev.map(insight => 
-          insight.id === insightId 
+      setInsights(prev =>
+        prev.map(insight =>
+          insight.id === insightId
             ? { ...insight, is_read: true }
             : insight
         )
@@ -205,18 +215,20 @@ const TradeIndexInsights = () => {
         <CardTitle className="flex items-center gap-2 justify-between">
           <div className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5" />
-            Trade & Inventory Insights
+            {title}
           </div>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={triggerInventoryAnalysis}
-          >
-            Analyze Inventory
-          </Button>
+          {showAnalyzeButton && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={triggerInventoryAnalysis}
+            >
+              Analyze Inventory
+            </Button>
+          )}
         </CardTitle>
         <CardDescription>
-          Market intelligence and inventory flow analysis based on your business data
+          {description}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -227,9 +239,9 @@ const TradeIndexInsights = () => {
               <p>No insights available yet.</p>
               <p className="text-sm">Record some sales and inventory changes to get personalized insights.</p>
               {user && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="mt-4"
                   onClick={triggerInventoryAnalysis}
                 >
@@ -241,17 +253,15 @@ const TradeIndexInsights = () => {
             insights.map((insight) => (
               <div
                 key={insight.id}
-                className={`p-4 rounded-lg border transition-all ${
-                  insight.is_read ? 'bg-muted/50' : 'bg-background border-primary/20'
-                }`}
+                className={`p-4 rounded-lg border transition-all ${insight.is_read ? 'bg-muted/50' : 'bg-background border-primary/20'
+                  }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3 flex-1">
-                    <div className={`p-2 rounded-full ${
-                      insight.priority === 'high' ? 'bg-destructive/10 text-destructive' :
-                      insight.priority === 'medium' ? 'bg-orange-100 text-orange-600' :
-                      'bg-muted text-muted-foreground'
-                    }`}>
+                    <div className={`p-2 rounded-full ${insight.priority === 'high' ? 'bg-destructive/10 text-destructive' :
+                        insight.priority === 'medium' ? 'bg-orange-100 text-orange-600' :
+                          'bg-muted text-muted-foreground'
+                      }`}>
                       {getInsightIcon(insight.insight_type)}
                     </div>
                     <div className="flex-1">
