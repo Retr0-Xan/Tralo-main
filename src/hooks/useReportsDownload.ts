@@ -34,12 +34,14 @@ export const useReportsDownload = () => {
 
       if (error) throw error;
 
-      // Create blob and download
-      const blob = new Blob([data], { type: 'text/csv' });
+      const { blob, filename } = resolveReportBlob(data, {
+        fallbackFilename: `sales_report_${period}_${new Date().toISOString().split('T')[0]}.csv`
+      });
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `sales_report_${period}_${new Date().toISOString().split('T')[0]}.csv`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -78,12 +80,14 @@ export const useReportsDownload = () => {
 
       if (error) throw error;
 
-      // Create blob and download
-      const blob = new Blob([data], { type: 'text/csv' });
+      const { blob, filename } = resolveReportBlob(data, {
+        fallbackFilename: `financial_statement_${period}_${new Date().toISOString().split('T')[0]}.csv`
+      });
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `financial_statement_${period}_${new Date().toISOString().split('T')[0]}.csv`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -157,7 +161,7 @@ export const useReportsDownload = () => {
       categories.set(category, (categories.get(category) || 0) + amount);
     });
 
-    return Array.from(categories.entries()).map(([category, amount]) => 
+    return Array.from(categories.entries()).map(([category, amount]) =>
       `${category},₵${amount.toFixed(2)}`
     );
   };
@@ -218,5 +222,48 @@ export const useReportsDownload = () => {
     generateSalesReport,
     generateFinancialStatement,
     generateReceipt
+  };
+};
+
+const resolveReportBlob = (
+  payload: unknown,
+  options: { fallbackFilename: string }
+) => {
+  if (payload && typeof payload === 'object' && 'content' in payload) {
+    const data = payload as { content?: string; mimeType?: string; filename?: string };
+    if (data.content) {
+      const csvBytes = Uint8Array.from(atob(data.content), (char) => char.charCodeAt(0));
+      return {
+        blob: new Blob([csvBytes], { type: data.mimeType || 'text/csv;charset=utf-8' }),
+        filename: data.filename || options.fallbackFilename
+      };
+    }
+  }
+
+  if (typeof payload === 'string') {
+    try {
+      const parsed = JSON.parse(payload);
+      if (parsed?.content) {
+        const csvBytes = Uint8Array.from(atob(parsed.content), (char) => char.charCodeAt(0));
+        return {
+          blob: new Blob([csvBytes], { type: parsed.mimeType || 'text/csv;charset=utf-8' }),
+          filename: parsed.filename || options.fallbackFilename
+        };
+      }
+    } catch {
+      // fall through to treat as plain CSV text
+    }
+
+    const csvWithBom = `\uFEFF${payload}`;
+    return {
+      blob: new Blob([csvWithBom], { type: 'text/csv;charset=utf-8' }),
+      filename: options.fallbackFilename
+    };
+  }
+
+  // Unexpected payload; return empty CSV to avoid runtime error
+  return {
+    blob: new Blob(['No data'], { type: 'text/csv;charset=utf-8' }),
+    filename: options.fallbackFilename
   };
 };
