@@ -135,9 +135,22 @@ const buildInventoryOverview = async (userId: string): Promise<InventoryOverview
             (sum, s) => sum + Number(s.effective_amount ?? s.amount ?? 0),
             0
         );
-        const avgSellingPrice = productSales.length > 0 ? totalSalesAmount / productSales.length : 0;
+        const totalUnitsSold = productSales.reduce(
+            (sum, s) => sum + Number(s.effective_quantity ?? s.quantity ?? 0),
+            0
+        );
 
-        const currentValue = currentStock * (avgCostPrice || 0);
+        const avgSellingPrice = totalUnitsSold > 0
+            ? totalSalesAmount / totalUnitsSold
+            : Number(product.selling_price ?? 0) > 0
+                ? Number(product.selling_price)
+                : 0;
+
+        const unitStockValue = Number(product.selling_price ?? 0) > 0
+            ? Number(product.selling_price)
+            : avgCostPrice || avgSellingPrice;
+
+        const currentValue = currentStock * (unitStockValue || 0);
 
         let status: "healthy" | "low" | "out" | "slow";
         let recommendation: string;
