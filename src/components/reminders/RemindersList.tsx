@@ -3,21 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Clock, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
-
-interface Reminder {
-  id: string;
-  title: string;
-  description?: string;
-  reminder_date: string;
-  reminder_time?: string;
-  priority: 'low' | 'medium' | 'high';
-  category: string;
-  is_completed: boolean;
-  is_notified: boolean;
-  recurring_type: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
-  created_at: string;
-  updated_at: string;
-}
+import { Reminder } from "@/types/reminder";
 
 interface RemindersListProps {
   reminders: Reminder[];

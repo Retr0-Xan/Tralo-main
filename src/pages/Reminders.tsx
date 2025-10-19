@@ -10,39 +10,9 @@ import { useToast } from "@/hooks/use-toast";
 import ReminderForm from "@/components/reminders/ReminderForm";
 import RemindersList from "@/components/reminders/RemindersList";
 import { PageHeader } from "@/components/layout/PageHeader";
-
-interface Reminder {
-  id: string;
-  title: string;
-  description?: string;
-  reminder_date: string;
-  reminder_time?: string;
-  priority: 'low' | 'medium' | 'high';
-  category: string;
-  is_completed: boolean;
-  is_notified: boolean;
-  recurring_type: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
-  created_at: string;
-  updated_at: string;
-}
+import { Reminder, ReminderRow } from "@/types/reminder";
 
 type FilterType = 'all' | 'pending' | 'completed' | 'today';
-
-type ReminderRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  reminder_date: string;
-  reminder_time: string | null;
-  priority: string | null;
-  category: string;
-  is_completed: boolean;
-  is_notified: boolean;
-  recurring_type: string | null;
-  created_at: string;
-  updated_at: string;
-  user_id: string;
-};
 
 const Reminders = () => {
   const { user } = useAuth();

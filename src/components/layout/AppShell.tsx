@@ -1,6 +1,7 @@
 import { ReactNode, useState } from "react";
 import { SidebarNav } from "./SidebarNav";
 import { Topbar } from "./Topbar";
+import { useReminderNotifications } from "@/hooks/useReminderNotifications";
 
 interface AppShellProps {
     children: ReactNode;
@@ -8,6 +9,7 @@ interface AppShellProps {
 
 export const AppShell = ({ children }: AppShellProps) => {
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+    useReminderNotifications();
 
     return (
         <div className="flex min-h-screen bg-muted/20 text-foreground">
