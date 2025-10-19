@@ -12,12 +12,126 @@ interface ReportData {
   transactions: any[];
 }
 
+type ReportSummary = {
+  [key: string]: unknown;
+  source?: string;
+  period?: string;
+  totalRevenue?: number;
+  totalExpenses?: number;
+  cashSales?: number;
+  creditSales?: number;
+  netProfit?: number;
+  netIncome?: number;
+  totalTransactions?: number;
+  currentInventoryValue?: number;
+  periodInventorySpend?: number;
+  totalUnitsSold?: number;
+  businessName?: string | null;
+  ownerName?: string | null;
+  generatedAt?: string;
+  startDateLabel?: string;
+  endDateLabel?: string;
+};
+
+type ResolvedReport = {
+  blob: Blob;
+  filename: string;
+  summary?: ReportSummary;
+};
+
 export const useReportsDownload = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const formatPeriodLabel = (period: string) => {
+    const map: Record<string, string> = {
+      week: 'Weekly',
+      month: 'Monthly',
+      quarter: 'Quarterly',
+      year: 'Yearly',
+    };
+    const normalized = typeof period === 'string' ? period.toLowerCase() : '';
+    if (map[normalized]) {
+      return map[normalized];
+    }
+    return normalized ? `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)}` : 'Custom';
+  };
+
+  const generateReportDocumentNumber = (type: 'sales_report' | 'financial_statement') => {
+    const prefix = type === 'sales_report' ? 'SR' : 'FS';
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `${prefix}-${timestamp}-${random}`;
+  };
+
+  const normalizeNumber = (value: unknown) => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+    return 0;
+  };
+
+  const recordReportDocument = async (params: {
+    type: 'sales_report' | 'financial_statement';
+    period: string;
+    filename: string;
+    summary?: ReportSummary;
+  }): Promise<boolean> => {
+    if (!user?.id) {
+      return false;
+    }
+
+    const { type, period, filename, summary } = params;
+
+    try {
+      const documentNumber = generateReportDocumentNumber(type);
+      const periodLabel = formatPeriodLabel(period);
+      const titleBase = type === 'sales_report' ? 'Sales Report' : 'Financial Statement';
+      const businessName = typeof summary?.businessName === 'string' && summary.businessName
+        ? summary.businessName
+        : 'Business Overview';
+      const totalAmount = type === 'sales_report'
+        ? normalizeNumber(summary?.totalRevenue)
+        : normalizeNumber(summary?.netIncome ?? summary?.netProfit);
+
+      const content = {
+        filename,
+        period,
+        summary: summary ?? null,
+        generatedAt: typeof summary?.generatedAt === 'string' ? summary.generatedAt : new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('documents')
+        .insert({
+          user_id: user.id,
+          document_type: type,
+          document_number: documentNumber,
+          title: `${titleBase} - ${periodLabel}`,
+          customer_name: businessName,
+          total_amount: totalAmount,
+          content,
+          status: 'issued',
+        });
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error(`Failed to record ${params.type} in document history:`, error);
+      return false;
+    }
+  };
+
   const generateSalesReport = async (period: string) => {
     if (!user) return;
+
+    const periodLabel = formatPeriodLabel(period);
 
     try {
       toast({
@@ -34,7 +148,7 @@ export const useReportsDownload = () => {
 
       if (error) throw error;
 
-      const { blob, filename } = resolveReportBlob(data, {
+      const { blob, filename, summary } = resolveReportBlob(data, {
         fallbackFilename: `sales_report_${period}_${new Date().toISOString().split('T')[0]}.csv`
       });
 
@@ -47,9 +161,18 @@ export const useReportsDownload = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
+      const recorded = await recordReportDocument({
+        type: 'sales_report',
+        period,
+        filename,
+        summary,
+      });
+
       toast({
         title: "📊 Sales Report Downloaded!",
-        description: `${period} sales report has been saved to your downloads.`,
+        description: recorded
+          ? `${periodLabel} sales report saved to your downloads and document history.`
+          : `${periodLabel} sales report saved to your downloads.`,
       });
 
     } catch (error) {
@@ -64,6 +187,8 @@ export const useReportsDownload = () => {
 
   const generateFinancialStatement = async (period: string) => {
     if (!user) return;
+
+    const periodLabel = formatPeriodLabel(period);
 
     try {
       toast({
@@ -80,7 +205,7 @@ export const useReportsDownload = () => {
 
       if (error) throw error;
 
-      const { blob, filename } = resolveReportBlob(data, {
+      const { blob, filename, summary } = resolveReportBlob(data, {
         fallbackFilename: `financial_statement_${period}_${new Date().toISOString().split('T')[0]}.csv`
       });
 
@@ -93,9 +218,18 @@ export const useReportsDownload = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
+      const recorded = await recordReportDocument({
+        type: 'financial_statement',
+        period,
+        filename,
+        summary,
+      });
+
       toast({
         title: "📋 Financial Statement Downloaded!",
-        description: `${period} financial statement has been saved to your downloads.`,
+        description: recorded
+          ? `${periodLabel} financial statement saved to your downloads and document history.`
+          : `${periodLabel} financial statement saved to your downloads.`,
       });
 
     } catch (error) {
@@ -228,26 +362,32 @@ export const useReportsDownload = () => {
 const resolveReportBlob = (
   payload: unknown,
   options: { fallbackFilename: string }
-) => {
+): ResolvedReport => {
+  let summary: ReportSummary | undefined;
+
   if (payload && typeof payload === 'object' && 'content' in payload) {
-    const data = payload as { content?: string; mimeType?: string; filename?: string };
+    const data = payload as { content?: string; mimeType?: string; filename?: string; summary?: ReportSummary };
     if (data.content) {
       const csvBytes = Uint8Array.from(atob(data.content), (char) => char.charCodeAt(0));
+      summary = data.summary;
       return {
         blob: new Blob([csvBytes], { type: data.mimeType || 'text/csv;charset=utf-8' }),
-        filename: data.filename || options.fallbackFilename
+        filename: data.filename || options.fallbackFilename,
+        summary,
       };
     }
   }
 
   if (typeof payload === 'string') {
     try {
-      const parsed = JSON.parse(payload);
+      const parsed = JSON.parse(payload) as { content?: string; mimeType?: string; filename?: string; summary?: ReportSummary };
       if (parsed?.content) {
         const csvBytes = Uint8Array.from(atob(parsed.content), (char) => char.charCodeAt(0));
+        summary = parsed.summary;
         return {
           blob: new Blob([csvBytes], { type: parsed.mimeType || 'text/csv;charset=utf-8' }),
-          filename: parsed.filename || options.fallbackFilename
+          filename: parsed.filename || options.fallbackFilename,
+          summary,
         };
       }
     } catch {
@@ -257,13 +397,15 @@ const resolveReportBlob = (
     const csvWithBom = `\uFEFF${payload}`;
     return {
       blob: new Blob([csvWithBom], { type: 'text/csv;charset=utf-8' }),
-      filename: options.fallbackFilename
+      filename: options.fallbackFilename,
+      summary,
     };
   }
 
   // Unexpected payload; return empty CSV to avoid runtime error
   return {
     blob: new Blob(['No data'], { type: 'text/csv;charset=utf-8' }),
-    filename: options.fallbackFilename
+    filename: options.fallbackFilename,
+    summary,
   };
 };

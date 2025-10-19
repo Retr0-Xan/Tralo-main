@@ -248,10 +248,36 @@ const handler = async (req: Request): Promise<Response> => {
       expensesByCategory.set(category, (expensesByCategory.get(category) || 0) + amount);
     });
 
+    const netIncome = totalRevenue - totalExpenses;
+
+    const generatedAt = new Date();
+    const generatedAtLabel = generatedAt.toLocaleDateString();
+    const generatedAtIso = generatedAt.toISOString();
+
+    const summary = {
+      source: 'financial_statement',
+      period,
+      startDateIso: startIso,
+      endDateIso: endIso,
+      startDateLabel,
+      endDateLabel,
+      generatedAt: generatedAtIso,
+      businessName: businessProfile?.business_name ?? null,
+      ownerName: businessProfile?.owner_name ?? null,
+      totalRevenue,
+      totalExpenses,
+      cashSales,
+      creditSales,
+      netIncome,
+      currentInventoryValue,
+      periodInventorySpend,
+      totalUnitsSold,
+    };
+
     // Generate comprehensive financial statement
     const csvContent = [
       `FINANCIAL STATEMENT - ${period.toUpperCase()}`,
-      `Generated on: ${new Date().toLocaleDateString()}`,
+      `Generated on: ${generatedAtLabel}`,
       `Period: ${startDateLabel} - ${endDateLabel}`,
       `Business: ${businessProfile?.business_name || 'N/A'}`,
       `Owner: ${businessProfile?.owner_name || 'N/A'}`,
@@ -270,8 +296,8 @@ const handler = async (req: Request): Promise<Response> => {
       `Total Expenses,₵${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       '',
       'NET INCOME',
-      `Gross Profit,₵${(totalRevenue - totalExpenses).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `Net Profit Margin,${totalRevenue > 0 ? (((totalRevenue - totalExpenses) / totalRevenue) * 100).toFixed(1) : 0}%`,
+      `Gross Profit,₵${netIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Net Profit Margin,${totalRevenue > 0 ? ((netIncome / totalRevenue) * 100).toFixed(1) : 0}%`,
       '',
       '=== BALANCE SHEET ===',
       'ASSETS',
@@ -286,8 +312,8 @@ const handler = async (req: Request): Promise<Response> => {
       `Total Current Liabilities,₵0.00`,
       '',
       'EQUITY',
-      `Retained Earnings,₵${(totalRevenue - totalExpenses).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `Total Equity,₵${(totalRevenue - totalExpenses).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Retained Earnings,₵${netIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `Total Equity,₵${netIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       '',
       '=== CASH FLOW ANALYSIS ===',
       `Cash from Operations,₵${cashSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -298,7 +324,7 @@ const handler = async (req: Request): Promise<Response> => {
       `Current Ratio,${creditSales > 0 ? ((currentInventoryValue + creditSales) / creditSales).toFixed(2) : 'N/A'}`,
       `Inventory Turnover,${currentInventoryValue > 0 ? (totalExpenses / currentInventoryValue).toFixed(2) : 'N/A'}`,
       `Units Sold,${totalUnitsSold}`,
-      `Profit Margin,${totalRevenue > 0 ? (((totalRevenue - totalExpenses) / totalRevenue) * 100).toFixed(1) : 0}%`,
+      `Profit Margin,${totalRevenue > 0 ? ((netIncome / totalRevenue) * 100).toFixed(1) : 0}%`,
       '',
       '=== DETAILED TRANSACTIONS ===',
       'Sales Transactions:',
@@ -328,6 +354,7 @@ const handler = async (req: Request): Promise<Response> => {
         filename: `financial_statement_${period}_${new Date().toISOString().split('T')[0]}.csv`,
         mimeType: 'text/csv',
         content: base64Content,
+        summary,
       }),
       {
         status: 200,

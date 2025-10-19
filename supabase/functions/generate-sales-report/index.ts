@@ -228,10 +228,32 @@ const handler = async (req: Request): Promise<Response> => {
     const cashSales = totalRevenue - creditSales;
     const totalTransactions = salesRows.length;
 
+    const generatedAt = new Date();
+    const generatedAtLabel = generatedAt.toLocaleDateString();
+    const generatedAtIso = generatedAt.toISOString();
+
+    const summary = {
+      source: 'sales_report',
+      period,
+      startDateIso: startIso,
+      endDateIso: endIso,
+      startDateLabel,
+      endDateLabel,
+      generatedAt: generatedAtIso,
+      businessName: businessProfile?.business_name ?? null,
+      ownerName: businessProfile?.owner_name ?? null,
+      totalRevenue,
+      totalExpenses,
+      cashSales,
+      creditSales,
+      netProfit,
+      totalTransactions,
+    };
+
     // Generate CSV report
     const csvContent = [
       `Sales Summary Report - ${period.toUpperCase()}`,
-      `Generated on: ${new Date().toLocaleDateString()}`,
+      `Generated on: ${generatedAtLabel}`,
       `Period: ${startDateLabel} - ${endDateLabel}`,
       `Business: ${businessProfile?.business_name || 'N/A'}`,
       `Owner: ${businessProfile?.owner_name || 'N/A'}`,
@@ -269,6 +291,7 @@ const handler = async (req: Request): Promise<Response> => {
         filename: `sales_report_${period}_${new Date().toISOString().split('T')[0]}.csv`,
         mimeType: 'text/csv',
         content: base64Content,
+        summary,
       }),
       {
         status: 200,
