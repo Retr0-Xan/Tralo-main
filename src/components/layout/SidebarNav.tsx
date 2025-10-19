@@ -99,7 +99,16 @@ export const SidebarNav = ({ isMobileOpen, onClose }: SidebarNavProps) => {
                         </span>
                         <div>
                             <p className="text-sm font-semibold">Need help?</p>
-                            <p className="text-xs text-muted-foreground">Reach out to the Tralo team for onboarding and support.</p>
+                            <p className="text-xs text-muted-foreground">
+                                Reach out at
+                                <a
+                                    href="mailto:info.traloapp@gmail.com"
+                                    className="ml-1 font-medium text-primary underline-offset-4 hover:underline"
+                                >
+                                    info.traloapp@gmail.com
+                                </a>
+                                ‎ for onboarding and support.
+                            </p>
                         </div>
                     </div>
                 </div>
