@@ -7,7 +7,6 @@ import {
     LineChart,
     FileText,
     Bell,
-    UsersRound,
     IdCard,
     HelpCircle,
     X,
@@ -38,7 +37,6 @@ const primaryNav: NavItem[] = [
 ];
 
 const secondaryNav: NavItem[] = [
-    { label: "Customer Portal", path: "/customer-purchase", icon: UsersRound },
     { label: "Profile & Branding", path: "/profile", icon: IdCard },
 ];
 

@@ -18,7 +18,6 @@ import Sales from "./pages/Sales";
 import TradeIndex from "./pages/TradeIndex";
 import Documents from "./pages/Documents";
 import Profile from "./pages/Profile";
-import CustomerPurchase from "./pages/CustomerPurchase";
 import Reminders from "./pages/Reminders";
 
 const ProtectedLayout = () => {
@@ -61,7 +60,6 @@ const App = () => (
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/confirm-email" element={<ConfirmEmail />} />
               <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/customer-purchase" element={<CustomerPurchase />} />
 
               <Route element={<ProtectedLayout />}>
                 <Route path="/" element={<Index />} />
