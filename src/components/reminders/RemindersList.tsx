@@ -12,34 +12,34 @@ interface RemindersListProps {
   getPriorityColor: (priority: string) => string;
 }
 
-const RemindersList = ({ 
-  reminders, 
-  onToggleComplete, 
-  onDelete, 
-  getPriorityColor 
+const RemindersList = ({
+  reminders,
+  onToggleComplete,
+  onDelete,
+  getPriorityColor
 }: RemindersListProps) => {
-  
+
   const formatReminderDate = (dateString: string, timeString?: string) => {
     const date = new Date(dateString);
-    const dateFormat = isToday(date) ? "'Today'" : 
-                      isThisWeek(date) ? "EEEE" : 
-                      "MMM dd, yyyy";
-    
+    const dateFormat = isToday(date) ? "'Today'" :
+      isThisWeek(date) ? "EEEE" :
+        "MMM dd, yyyy";
+
     let formatted = format(date, dateFormat);
-    
+
     if (timeString) {
       formatted += ` at ${timeString}`;
     }
-    
+
     return formatted;
   };
 
   const getReminderStatus = (reminder: Reminder) => {
     if (reminder.is_completed) return 'completed';
-    
+
     const reminderDate = new Date(reminder.reminder_date);
     const now = new Date();
-    
+
     if (isPast(reminderDate)) return 'overdue';
     if (isToday(reminderDate)) return 'today';
     return 'upcoming';
@@ -87,58 +87,56 @@ const RemindersList = ({
     <div className="space-y-4">
       {reminders.map((reminder) => {
         const status = getReminderStatus(reminder);
-        
+
         return (
-          <Card 
-            key={reminder.id} 
-            className={`transition-all duration-200 ${getStatusColor(status)} ${
-              reminder.is_completed ? 'opacity-70' : ''
-            }`}
+          <Card
+            key={reminder.id}
+            className={`transition-all duration-200 ${getStatusColor(status)} ${reminder.is_completed ? 'opacity-70' : ''
+              }`}
           >
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
                     {getStatusIcon(status)}
-                    <h3 className={`font-semibold text-foreground ${
-                      reminder.is_completed ? 'line-through' : ''
-                    }`}>
+                    <h3 className={`font-semibold text-foreground ${reminder.is_completed ? 'line-through' : ''
+                      }`}>
                       {reminder.title}
                     </h3>
                   </div>
-                  
+
                   {reminder.description && (
                     <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                       {reminder.description}
                     </p>
                   )}
-                  
+
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="text-xs">
                       📅 {formatReminderDate(reminder.reminder_date, reminder.reminder_time || undefined)}
                     </Badge>
-                    
+
                     <Badge variant={getPriorityColor(reminder.priority) as any} className="text-xs">
                       {reminder.priority.toUpperCase()}
                     </Badge>
-                    
+
                     <Badge variant="secondary" className="text-xs capitalize">
                       {reminder.category}
                     </Badge>
-                    
+
                     {reminder.recurring_type !== 'none' && (
                       <Badge variant="outline" className="text-xs">
                         <RefreshCw className="w-3 h-3 mr-1" />
                         {reminder.recurring_type}
                       </Badge>
                     )}
-                    
+
                     {status === 'overdue' && !reminder.is_completed && (
                       <Badge variant="destructive" className="text-xs">
                         OVERDUE
                       </Badge>
                     )}
-                    
+
                     {status === 'today' && !reminder.is_completed && (
                       <Badge variant="default" className="text-xs">
                         TODAY
@@ -146,7 +144,7 @@ const RemindersList = ({
                     )}
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <Button
                     variant={reminder.is_completed ? "default" : "outline"}
@@ -156,7 +154,7 @@ const RemindersList = ({
                   >
                     <Check className="w-4 h-4" />
                   </Button>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
