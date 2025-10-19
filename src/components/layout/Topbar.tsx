@@ -44,7 +44,6 @@ const ROUTE_META: RouteMeta[] = [
     { path: "/reminders", title: "Business Reminders", description: "Stay ahead with scheduled follow-ups and task alerts." },
     { path: "/profile", title: "Business Profile", description: "Update your brand presence, contact details, and highlights." },
     { path: "/customer-purchase", title: "Customer Portal", description: "Review shared purchase experiences and QR workflows." },
-    { path: "/purchase", title: "Quick Purchase", description: "Record walk-in transactions and issue receipts instantly." },
 ];
 
 const getRouteMeta = (pathname: string): RouteMeta => {
