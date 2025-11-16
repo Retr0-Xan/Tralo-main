@@ -625,7 +625,11 @@ const SalesRecording = () => {
                     min="0"
                     step="0.01"
                     value={unitPrice}
-                    onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setUnitPrice(value === '' ? 0 : parseFloat(value) || 0);
+                    }}
+                    onFocus={(e) => e.target.select()}
                   />
                   {!isCustomProduct && selectedProduct && (
                     <p className="text-xs text-muted-foreground mt-1">
