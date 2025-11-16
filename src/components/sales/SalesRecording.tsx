@@ -625,16 +625,11 @@ const SalesRecording = () => {
                     min="0"
                     step="0.01"
                     value={unitPrice}
-                    readOnly={!isCustomProduct}
-                    onChange={(e) => {
-                      if (isCustomProduct) {
-                        setUnitPrice(parseFloat(e.target.value) || 0);
-                      }
-                    }}
+                    onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)}
                   />
                   {!isCustomProduct && selectedProduct && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Pulled from inventory selling price
+                      Default from inventory - editable
                     </p>
                   )}
                 </div>
