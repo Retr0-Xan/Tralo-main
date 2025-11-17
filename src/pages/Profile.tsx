@@ -1,11 +1,22 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, User, Building, Phone, MapPin, Clock, Camera, Edit, Save, X, LogOut, Palette, FileText } from "lucide-react";
+import { ArrowLeft, User, Building, Phone, MapPin, Clock, Camera, Edit, Save, X, LogOut, Palette, FileText, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +51,8 @@ const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchingProfile, setFetchingProfile] = useState(true);
-  
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const [profile, setProfile] = useState<BusinessProfile>({
     businessName: "",
     ownerName: "",
@@ -72,10 +84,10 @@ const Profile = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
-      
+
       try {
         setFetchingProfile(true);
-        
+
         // Fetch from profiles table
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
@@ -155,7 +167,7 @@ const Profile = () => {
 
   const handleSave = async () => {
     if (!user) return;
-    
+
     setLoading(true);
     try {
       // Update business_profiles table
@@ -196,10 +208,10 @@ const Profile = () => {
         .eq('id', user.id);
 
       if (profileError) throw profileError;
-      
+
       setProfile(editedProfile);
       setIsEditing(false);
-      
+
       toast({
         title: "Profile Updated",
         description: "Your business profile has been updated successfully.",
@@ -227,7 +239,7 @@ const Profile = () => {
   const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      
+
       if (error) {
         toast({
           title: "Error",
@@ -241,7 +253,7 @@ const Profile = () => {
         title: "Logged Out",
         description: "You have been successfully logged out.",
       });
-      
+
       // Navigate to auth page after logout
       navigate("/auth");
     } catch (error) {
@@ -251,6 +263,40 @@ const Profile = () => {
         description: "An unexpected error occurred during logout.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+
+    setIsDeleting(true);
+    try {
+      // Call the database function to delete all user data
+      const { error } = await supabase.rpc('delete_user_account', {
+        user_uuid: user.id
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Account Deleted",
+        description: "Your account and all associated data have been permanently deleted.",
+      });
+
+      // Sign out and redirect to auth page
+      await supabase.auth.signOut();
+      navigate("/auth");
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete account. Please try again or contact support.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -478,7 +524,7 @@ const Profile = () => {
                 A short, memorable phrase that represents your business
               </p>
             </div>
-            
+
             <div>
               <Label htmlFor="description">Detailed Description</Label>
               <Textarea
@@ -519,7 +565,7 @@ const Profile = () => {
                   How long have you been in business?
                 </p>
               </div>
-              
+
               <div>
                 <Label htmlFor="stockFreshness">Stock Freshness</Label>
                 <Input
@@ -533,7 +579,7 @@ const Profile = () => {
                   How fresh are your products?
                 </p>
               </div>
-              
+
               <div>
                 <Label htmlFor="communityFocus">Community Focus</Label>
                 <Input
@@ -547,7 +593,7 @@ const Profile = () => {
                   How do you serve your community?
                 </p>
               </div>
-              
+
               <div>
                 <Label htmlFor="qualityCommitment">Quality Commitment</Label>
                 <Input
@@ -562,7 +608,7 @@ const Profile = () => {
                 </p>
               </div>
             </div>
-            
+
             {/* Display as badges when not editing */}
             {!isEditing && (profile.yearsFounded || profile.stockFreshness || profile.communityFocus || profile.qualityCommitment) && (
               <div className="mt-4 p-4 bg-muted/30 rounded-lg">
@@ -676,6 +722,72 @@ const Profile = () => {
 
         {/* QR Code Display */}
         <QRCodeDisplay />
+
+        {/* Danger Zone - Delete Account */}
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-5 h-5" />
+              Danger Zone
+            </CardTitle>
+            <CardDescription>
+              Permanent actions that cannot be undone
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                <h3 className="font-semibold mb-2 text-destructive">Delete Account</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Once you delete your account, there is no going back. This will permanently delete:
+                </p>
+                <ul className="text-sm text-muted-foreground space-y-1 mb-4 ml-4 list-disc">
+                  <li>All your business profile information</li>
+                  <li>All inventory records and products</li>
+                  <li>All sales history and customer data</li>
+                  <li>All documents, receipts, and invoices</li>
+                  <li>All financial records and reports</li>
+                  <li>All reminders and notes</li>
+                </ul>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={isDeleting}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {isDeleting ? "Deleting Account..." : "Delete Account"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-destructive" />
+                        Are you absolutely sure?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="space-y-2">
+                        <p>
+                          This action <strong>cannot be undone</strong>. This will permanently delete your
+                          account and remove all your data from our servers.
+                        </p>
+                        <p className="text-destructive font-semibold">
+                          All your business data, sales records, inventory, and customer information will be
+                          permanently lost.
+                        </p>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDeleteAccount}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Yes, delete my account
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
