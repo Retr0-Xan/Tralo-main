@@ -6,13 +6,21 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Sparkles } from "lucide-react";
+import { Plus, Sparkles, Trash2, List } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import SupplierForm from "./SupplierForm";
 import { useQueryClient } from "@tanstack/react-query";
 import { inventoryOverviewQueryKey } from "@/hooks/useInventoryOverview";
 import { homeMetricsQueryKey } from "@/hooks/useHomeMetrics";
+
+interface BulkInventoryItem {
+  id: string;
+  productName: string;
+  quantity: number;
+  costPrice: number;
+  sellingPrice: number;
+}
 
 const InventoryRecording = () => {
   const [productName, setProductName] = useState("");
@@ -33,6 +41,8 @@ const InventoryRecording = () => {
   const [internationalUnit, setInternationalUnit] = useState("");
   const [localUnit, setLocalUnit] = useState("");
   const [recordAsExpense, setRecordAsExpense] = useState(false);
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [bulkItems, setBulkItems] = useState<BulkInventoryItem[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -73,8 +83,170 @@ const InventoryRecording = () => {
     }
   };
 
+  const addToBulkList = () => {
+    const finalProductName = productName || (selectedProduct !== 'custom' ? selectedProduct : '');
+
+    if (!finalProductName.trim() || !quantity.trim()) {
+      toast({
+        title: "Error",
+        description: "Product name and quantity are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newItem: BulkInventoryItem = {
+      id: Date.now().toString(),
+      productName: finalProductName.trim(),
+      quantity: parseInt(quantity),
+      costPrice: costPrice ? parseFloat(costPrice) : 0,
+      sellingPrice: sellingPrice ? parseFloat(sellingPrice) : 0,
+    };
+
+    setBulkItems([...bulkItems, newItem]);
+
+    // Reset single item form
+    setProductName("");
+    setQuantity("");
+    setCostPrice("");
+    setSellingPrice("");
+    setSelectedProduct("");
+
+    toast({
+      title: "Item Added",
+      description: `${finalProductName} added to bulk list`,
+    });
+  };
+
+  const removeFromBulkList = (itemId: string) => {
+    setBulkItems(bulkItems.filter(item => item.id !== itemId));
+    toast({
+      title: "Item Removed",
+      description: "Item removed from bulk list",
+    });
+  };
+
+  const processBulkInventory = async () => {
+    if (bulkItems.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please add at least one item to the bulk list",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error('Not authenticated');
+      const userId = authUser.id;
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const item of bulkItems) {
+        try {
+          // Check if product exists
+          const { data: existingProduct } = await supabase
+            .from('user_products')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('product_name', item.productName)
+            .single();
+
+          if (existingProduct) {
+            // Update existing product
+            const updateData: any = {
+              current_stock: (existingProduct.current_stock || 0) + item.quantity,
+              updated_at: new Date().toISOString()
+            };
+
+            if (item.sellingPrice > 0) {
+              updateData.selling_price = item.sellingPrice;
+            }
+
+            await supabase
+              .from('user_products')
+              .update(updateData)
+              .eq('id', existingProduct.id);
+          } else {
+            // Create new product
+            const insertData: any = {
+              user_id: userId,
+              product_name: item.productName,
+              current_stock: item.quantity
+            };
+
+            if (item.sellingPrice > 0) {
+              insertData.selling_price = item.sellingPrice;
+            }
+
+            await supabase
+              .from('user_products')
+              .insert(insertData);
+          }
+
+          // Create inventory movement record
+          await supabase
+            .from('inventory_movements')
+            .insert({
+              user_id: userId,
+              product_name: item.productName,
+              movement_type: 'received',
+              quantity: item.quantity,
+              unit_price: item.costPrice || null,
+              notes: 'Bulk inventory entry'
+            });
+
+          successCount++;
+        } catch (error) {
+          console.error(`Error processing ${item.productName}:`, error);
+          errorCount++;
+        }
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: inventoryOverviewQueryKey(userId) }),
+        queryClient.invalidateQueries({ queryKey: homeMetricsQueryKey(userId) })
+      ]);
+
+      if (errorCount === 0) {
+        toast({
+          title: "🎉 Bulk Inventory Added Successfully!",
+          description: `Added ${successCount} product${successCount > 1 ? 's' : ''} to inventory`,
+        });
+      } else {
+        toast({
+          title: "Bulk Entry Completed with Errors",
+          description: `Success: ${successCount}, Failed: ${errorCount}`,
+          variant: "destructive",
+        });
+      }
+
+      // Reset bulk list
+      setBulkItems([]);
+      setIsBulkMode(false);
+
+    } catch (error) {
+      console.error('Error processing bulk inventory:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process bulk inventory",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isBulkMode) {
+      addToBulkList();
+      return;
+    }
 
     const finalProductName = productName || (selectedProduct !== 'custom' ? selectedProduct : '');
 
@@ -244,12 +416,67 @@ const InventoryRecording = () => {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-primary" />
-          Add New Product to Inventory
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary" />
+            {isBulkMode ? 'Add Multiple Products (Bulk)' : 'Add New Product to Inventory'}
+          </CardTitle>
+          <Button
+            type="button"
+            variant={isBulkMode ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setIsBulkMode(!isBulkMode);
+              if (!isBulkMode) {
+                // Reset single form when switching to bulk
+                setProductName("");
+                setQuantity("");
+                setCostPrice("");
+                setSellingPrice("");
+                setSelectedProduct("");
+              }
+            }}
+          >
+            <List className="w-4 h-4 mr-2" />
+            {isBulkMode ? 'Switch to Single' : 'Add Bulk'}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
+        {isBulkMode && bulkItems.length > 0 && (
+          <Card className="mb-6 border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-lg">Bulk Items ({bulkItems.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {bulkItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-background">
+                  <div className="flex-1">
+                    <div className="font-medium">{item.productName}</div>
+                    <div className="text-sm text-muted-foreground">
+                      Qty: {item.quantity} | Cost: ¢{item.costPrice.toFixed(2)} | Selling: ¢{item.sellingPrice.toFixed(2)}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeFromBulkList(item.id)}
+                  >
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                onClick={processBulkInventory}
+                disabled={loading}
+                className="w-full mt-4"
+              >
+                {loading ? 'Processing...' : `Save All ${bulkItems.length} Items to Inventory`}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Name */}
           <div className="space-y-2">
@@ -452,7 +679,11 @@ const InventoryRecording = () => {
             disabled={loading}
           >
             <Plus className="w-4 h-4" />
-            {loading ? 'Adding to Inventory...' : 'Add Product to Inventory 🚀'}
+            {loading
+              ? 'Adding to Inventory...'
+              : isBulkMode
+                ? 'Add to Bulk List'
+                : 'Add Product to Inventory 🚀'}
           </Button>
         </form>
       </CardContent>
