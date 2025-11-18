@@ -70,7 +70,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
 
     return (
         <header className="sticky top-0 z-30 border-b border-border/80 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-10">
+            <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-2 sm:gap-4 px-3 py-3 sm:px-6 sm:py-4 lg:px-10">
                 <div className="flex items-center gap-3">
                     <Button
                         variant="outline"

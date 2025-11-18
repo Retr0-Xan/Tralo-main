@@ -3,12 +3,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { 
-  DollarSign, 
-  ShoppingCart, 
-  TrendingUp, 
-  TrendingDown, 
-  Calendar, 
+import {
+  DollarSign,
+  ShoppingCart,
+  TrendingUp,
+  TrendingDown,
+  Calendar,
   CreditCard,
   Target,
   Award,
@@ -29,23 +29,23 @@ import { useAuth } from "@/hooks/useAuth";
 const SalesDashboard = () => {
   const { user } = useAuth();
   const [businessProfile, setBusinessProfile] = useState<any>(null);
-  
-  const { 
-    salesMetrics, 
-    cashFlow, 
-    salesBreakdown, 
-    salesTrends, 
+
+  const {
+    salesMetrics,
+    cashFlow,
+    salesBreakdown,
+    salesTrends,
     tradeInsights,
-    loading, 
-    refreshData 
+    loading,
+    refreshData
   } = useSalesData();
 
   const { currentGoal, refreshGoal } = useSalesGoals();
-  
+
   useEffect(() => {
     const fetchBusinessProfile = async () => {
       if (!user) return;
-      
+
       try {
         const { data: profileData, error } = await supabase
           .from('business_profiles')
@@ -62,7 +62,7 @@ const SalesDashboard = () => {
 
     fetchBusinessProfile();
   }, [user]);
-  
+
   const handleGoalUpdate = () => {
     refreshGoal();
     refreshData();
@@ -98,7 +98,7 @@ const SalesDashboard = () => {
       "Slow Mover": "bg-yellow-100 text-yellow-800 border-yellow-200",
       "Very Slow": "bg-red-100 text-red-800 border-red-200"
     };
-    
+
     return (
       <Badge variant="outline" className={statusColors[status as keyof typeof statusColors]}>
         {status}
@@ -130,20 +130,20 @@ const SalesDashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="mb-6 flex justify-between items-center">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between sm:items-center">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Sales Dashboard</h2>
-          <div className="flex items-center gap-3 mt-1">
-            <p className="text-muted-foreground">Track your sales performance and insights</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground">Sales Dashboard</h2>
+          <div className="flex items-center flex-wrap gap-2 sm:gap-3 mt-1">
+            <p className="text-sm sm:text-base text-muted-foreground">Track your sales performance and insights</p>
             <TrustScoreBadge size="sm" />
           </div>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           onClick={refreshData}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 w-full sm:w-auto"
         >
           <RefreshCw className="w-4 h-4" />
           Refresh
@@ -151,60 +151,60 @@ const SalesDashboard = () => {
       </div>
 
       {/* Sales Snapshot */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-2">
               <DollarSign className="w-4 h-4 text-green-600" />
               <span className="text-sm font-medium">Today's Sales</span>
             </div>
-            <div className="text-2xl font-bold text-green-600">¢{salesMetrics.todaySales}</div>
+            <div className="text-xl sm:text-2xl font-bold text-green-600">¢{salesMetrics.todaySales}</div>
           </CardContent>
         </Card>
-        
+
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-2">
               <Calendar className="w-4 h-4 text-blue-600" />
               <span className="text-sm font-medium">This Week</span>
             </div>
-            <div className="text-2xl font-bold text-blue-600">¢{salesMetrics.weekSales}</div>
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">¢{salesMetrics.weekSales}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-2">
               <BarChart3 className="w-4 h-4 text-purple-600" />
               <span className="text-sm font-medium">This Month</span>
             </div>
-            <div className="text-2xl font-bold text-purple-600">¢{salesMetrics.monthSales}</div>
+            <div className="text-xl sm:text-2xl font-bold text-purple-600">¢{salesMetrics.monthSales}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-2">
               <ShoppingCart className="w-4 h-4 text-orange-600" />
               <span className="text-sm font-medium">Items Sold Today</span>
             </div>
-            <div className="text-2xl font-bold text-orange-600">{salesMetrics.itemsSoldToday}</div>
+            <div className="text-xl sm:text-2xl font-bold text-orange-600">{salesMetrics.itemsSoldToday}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="w-4 h-4 text-green-600" />
               <span className="text-sm font-medium">Best Seller (Week)</span>
             </div>
-            <div className="text-lg font-bold">{salesMetrics.bestSellerWeek.product}</div>
+            <div className="text-base sm:text-lg font-bold truncate">{salesMetrics.bestSellerWeek.product}</div>
             <div className="text-sm text-muted-foreground">{salesMetrics.bestSellerWeek.quantity} sold</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingDown className="w-4 h-4 text-red-600" />
               <span className="text-sm font-medium">Slow Seller (Week)</span>
@@ -223,7 +223,7 @@ const SalesDashboard = () => {
             <div>
               <div className="font-semibold text-yellow-800 dark:text-yellow-200">💡 Quick Tip</div>
               <p className="text-sm text-muted-foreground mt-1">
-                {salesMetrics.bestSellerWeek.product !== "No sales" 
+                {salesMetrics.bestSellerWeek.product !== "No sales"
                   ? `${salesMetrics.bestSellerWeek.product} is your best seller this week. Monitor stock levels and check trade index before restocking.`
                   : "Start recording sales to see personalized insights and tips based on your business performance."}
               </p>
@@ -234,14 +234,14 @@ const SalesDashboard = () => {
 
       {/* Cash Flow */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <CreditCard className="w-5 h-5 text-primary" />
             Cash Flow Overview
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <CardContent className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
               <div className="text-sm font-medium text-green-800 dark:text-green-200">Total Cash Collected</div>
               <div className="text-xl font-bold text-green-600 dark:text-green-400">¢{cashFlow.totalCash}</div>
@@ -260,43 +260,45 @@ const SalesDashboard = () => {
 
       {/* Sales Breakdown Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Sales Breakdown</CardTitle>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-lg sm:text-xl">Sales Breakdown</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Items</TableHead>
-                <TableHead>Units Sold</TableHead>
-                <TableHead>Revenue (¢)</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {salesBreakdown.map((item) => (
-                <TableRow key={item.item}>
-                  <TableCell className="font-medium">{item.item}</TableCell>
-                  <TableCell>{item.unitsSold}</TableCell>
-                  <TableCell>¢{item.revenue}</TableCell>
-                  <TableCell>{getStatusBadge(item.status)}</TableCell>
+        <CardContent className="p-0 sm:p-6">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs sm:text-sm">Items</TableHead>
+                  <TableHead className="text-xs sm:text-sm">Units Sold</TableHead>
+                  <TableHead className="text-xs sm:text-sm">Revenue (¢)</TableHead>
+                  <TableHead className="text-xs sm:text-sm">Status</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {salesBreakdown.map((item) => (
+                  <TableRow key={item.item}>
+                    <TableCell className="font-medium text-xs sm:text-sm">{item.item}</TableCell>
+                    <TableCell className="text-xs sm:text-sm">{item.unitsSold}</TableCell>
+                    <TableCell className="text-xs sm:text-sm">¢{item.revenue}</TableCell>
+                    <TableCell className="text-xs sm:text-sm">{getStatusBadge(item.status)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
       {/* Top & Slow Movers */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
               <TrendingUp className="w-5 h-5 text-green-600" />
               Top 3 Movers
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6">
             <div className="space-y-3">
               {topMovers.map((item, index) => (
                 <div key={item.item} className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
@@ -314,13 +316,13 @@ const SalesDashboard = () => {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
               <TrendingDown className="w-5 h-5 text-red-600" />
               Slow Movers
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6">
             <div className="space-y-3">
               {slowMovers.map((item) => (
                 <div key={item.item} className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
@@ -335,13 +337,13 @@ const SalesDashboard = () => {
 
       {/* Sales Trends */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <BarChart3 className="w-5 h-5 text-primary" />
             Sales Trends (Week vs Last Week)
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           {salesTrends.length > 0 ? (
             <div className="space-y-3">
               {salesTrends.map((trend) => (
@@ -384,50 +386,50 @@ const SalesDashboard = () => {
                     {currentGoal.goal_type ? (currentGoal.goal_type.charAt(0).toUpperCase() + currentGoal.goal_type.slice(1)) : 'Monthly'} Target: ¢{Number(currentGoal.target_amount).toLocaleString()}
                   </span>
                   <span className="text-sm text-muted-foreground">
-                    ¢{currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales : 
+                    ¢{currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales :
                       currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
-                      currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales} / ¢{Number(currentGoal.target_amount).toLocaleString()}
+                        currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales} / ¢{Number(currentGoal.target_amount).toLocaleString()}
                   </span>
                 </div>
-                <Progress 
+                <Progress
                   value={Math.min((Number(
-                    currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales : 
-                    currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
-                    currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales
-                  ) / Number(currentGoal.target_amount)) * 100, 100)} 
-                  className="h-3" 
+                    currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales :
+                      currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
+                        currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales
+                  ) / Number(currentGoal.target_amount)) * 100, 100)}
+                  className="h-3"
                 />
                 <div className="flex items-center gap-2 text-sm">
                   <Award className="w-4 h-4 text-yellow-500" />
                   <span className="text-muted-foreground">
                     {Math.round((Number(
-                      currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales : 
-                      currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
-                      currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales
+                      currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales :
+                        currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
+                          currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales
                     ) / Number(currentGoal.target_amount)) * 100)}% complete
                     {Number(
-                      currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales : 
-                      currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
-                      currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales
+                      currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales :
+                        currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
+                          currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales
                     ) >= Number(currentGoal.target_amount) ? " - Target achieved! 🎉" : " - Keep going! 🎯"}
                   </span>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800">
                     <div className="text-sm font-medium text-yellow-800 dark:text-yellow-200">🔥 To Target</div>
                     <div className="text-xs text-yellow-600 dark:text-yellow-400">
                       {Number(
-                        currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales : 
-                        currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
-                        currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales
-                      ) >= Number(currentGoal.target_amount)
-                        ? "Target achieved!" 
-                        : `¢${(Number(currentGoal.target_amount) - Number(
-                            currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales : 
-                            currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
+                        currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales :
+                          currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
                             currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales
-                          )).toFixed(2)} left`}
+                      ) >= Number(currentGoal.target_amount)
+                        ? "Target achieved!"
+                        : `¢${(Number(currentGoal.target_amount) - Number(
+                          currentGoal.goal_type === 'monthly' ? salesMetrics.monthSales :
+                            currentGoal.goal_type === 'weekly' ? salesMetrics.weekSales :
+                              currentGoal.goal_type === 'daily' ? salesMetrics.todaySales : salesMetrics.monthSales
+                        )).toFixed(2)} left`}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800">
@@ -457,70 +459,70 @@ const SalesDashboard = () => {
 
       {/* Share Message Generator */}
       <ShareMessageGenerator
-          businessName={businessProfile?.business_name || "Your Business"}
-          location={businessProfile?.business_address || "Your Location"}
-          phoneNumber={businessProfile?.phone_number || "Your Phone Number"}
-          items={salesBreakdown
-            .filter(item => item.item && item.revenue) // Filter out invalid items
-            .map(item => {
-              const revenueStr = item.revenue?.toString().replace(/[¢,]/g, '') || '0';
-              const revenueNum = Number(revenueStr);
-              const unitPrice = item.unitsSold > 0 ? (revenueNum / item.unitsSold).toFixed(2) : '0';
-              return {
-                name: item.item,
-                price: unitPrice,
-                unit: "each"
-              };
-            })}
-          type="sales"
-        />
+        businessName={businessProfile?.business_name || "Your Business"}
+        location={businessProfile?.business_address || "Your Location"}
+        phoneNumber={businessProfile?.phone_number || "Your Phone Number"}
+        items={salesBreakdown
+          .filter(item => item.item && item.revenue) // Filter out invalid items
+          .map(item => {
+            const revenueStr = item.revenue?.toString().replace(/[¢,]/g, '') || '0';
+            const revenueNum = Number(revenueStr);
+            const unitPrice = item.unitsSold > 0 ? (revenueNum / item.unitsSold).toFixed(2) : '0';
+            return {
+              name: item.item,
+              price: unitPrice,
+              unit: "each"
+            };
+          })}
+        type="sales"
+      />
 
-        {/* Trade Insights */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Lightbulb className="w-5 h-5 text-primary" />
-              🧠 AI Trade Insights
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {tradeInsights.length > 0 ? (
-              <div className="space-y-3">
-                {tradeInsights.map((insight, index) => (
-                  <div
-                    key={index}
-                    className={`p-3 rounded-lg border border-border ${getPriorityColor(insight.priority)}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="text-lg">{getInsightIcon(insight.insight_type)}</span>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">{insight.product_name}</span>
-                          <Badge variant={insight.priority === 'high' ? 'destructive' : insight.priority === 'medium' ? 'default' : 'secondary'}>
-                            {insight.priority}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{insight.message}</p>
+      {/* Trade Insights */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-primary" />
+            🧠 AI Trade Insights
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {tradeInsights.length > 0 ? (
+            <div className="space-y-3">
+              {tradeInsights.map((insight, index) => (
+                <div
+                  key={index}
+                  className={`p-3 rounded-lg border border-border ${getPriorityColor(insight.priority)}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-lg">{getInsightIcon(insight.insight_type)}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium">{insight.product_name}</span>
+                        <Badge variant={insight.priority === 'high' ? 'destructive' : insight.priority === 'medium' ? 'default' : 'secondary'}>
+                          {insight.priority}
+                        </Badge>
                       </div>
+                      <p className="text-sm text-muted-foreground">{insight.message}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">
-                  Record more sales to get personalized trade insights
-                </p>
-                <p className="text-sm text-muted-foreground/80 mt-1">
-                  AI will analyze your sales patterns and provide market recommendations
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">
+                Record more sales to get personalized trade insights
+              </p>
+              <p className="text-sm text-muted-foreground/80 mt-1">
+                AI will analyze your sales patterns and provide market recommendations
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 };
 
 export default SalesDashboard;

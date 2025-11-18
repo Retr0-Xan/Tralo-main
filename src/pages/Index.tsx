@@ -42,7 +42,7 @@ const Index = () => {
         actions={<TrustScoreBadge size="md" />}
       />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           title="Today's Sales"
           value={loading ? "Updating…" : formatCurrency(todaysSales, "¢")}
@@ -69,39 +69,39 @@ const Index = () => {
         />
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-7">
-        <div className="space-y-6 lg:col-span-4">
-          <Card className="rounded-2xl border border-border/70">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl">Executive Snapshot</CardTitle>
-              <CardDescription>Monitor real-time market signals and performance insights.</CardDescription>
+      <section className="grid gap-4 sm:gap-6 lg:grid-cols-7">
+        <div className="space-y-4 sm:space-y-6 lg:col-span-4">
+          <Card className="rounded-xl sm:rounded-2xl border border-border/70">
+            <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+              <CardTitle className="text-lg sm:text-xl">Executive Snapshot</CardTitle>
+              <CardDescription className="text-sm">Monitor real-time market signals and performance insights.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6">
               <MarketTip />
-              <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+              <div className="rounded-xl sm:rounded-2xl border border-dashed border-border/70 bg-muted/20 p-3 sm:p-4 text-sm text-muted-foreground">
                 Keep an eye on suppliers with delayed restocks and prioritize high-demand items for replenishment.
               </div>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border border-border/70">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl">Trade Index Highlights</CardTitle>
-              <CardDescription>Latest intelligence from your watchlist and sector benchmarks.</CardDescription>
+          <Card className="rounded-xl sm:rounded-2xl border border-border/70">
+            <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+              <CardTitle className="text-lg sm:text-xl">Trade Index Highlights</CardTitle>
+              <CardDescription className="text-sm">Latest intelligence from your watchlist and sector benchmarks.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6">
               <TradeIndexInsights />
             </CardContent>
           </Card>
         </div>
 
-        <div className="space-y-6 lg:col-span-3">
-          <Card className="rounded-2xl border border-border/70">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl">Quick Actions</CardTitle>
-              <CardDescription>Launch operational workflows in a single click.</CardDescription>
+        <div className="space-y-4 sm:space-y-6 lg:col-span-3">
+          <Card className="rounded-xl sm:rounded-2xl border border-border/70">
+            <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+              <CardTitle className="text-lg sm:text-xl">Quick Actions</CardTitle>
+              <CardDescription className="text-sm">Launch operational workflows in a single click.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2 sm:space-y-3 p-4 sm:p-6">
               <ActionButton label="Record Sale" icon={ShoppingCart} onClick={() => navigate("/sales")}
                 variant="primary"
               />
@@ -126,12 +126,12 @@ const Index = () => {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border border-border/70">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl">Customer Engagement</CardTitle>
-              <CardDescription>Share your smart QR code and track trust performance.</CardDescription>
+          <Card className="rounded-xl sm:rounded-2xl border border-border/70">
+            <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+              <CardTitle className="text-lg sm:text-xl">Customer Engagement</CardTitle>
+              <CardDescription className="text-sm">Share your smart QR code and track trust performance.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6">
               <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 p-4">
                 <p className="text-sm font-medium text-foreground">Digital Trust Score</p>
                 <div className="mt-2"><TrustScoreBadge size="lg" /></div>

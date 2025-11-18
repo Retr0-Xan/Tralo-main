@@ -18,7 +18,7 @@ export const AppShell = ({ children }: AppShellProps) => {
             <div className="flex flex-1 flex-col overflow-hidden">
                 <Topbar onMenuClick={() => setMobileSidebarOpen(true)} />
                 <main className="flex-1 overflow-y-auto">
-                    <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-10">
+                    <div className="mx-auto w-full max-w-[1440px] px-3 py-4 sm:px-6 sm:py-6 lg:px-10">
                         {children}
                     </div>
                 </main>
