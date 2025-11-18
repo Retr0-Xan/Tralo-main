@@ -79,7 +79,7 @@ const Auth = () => {
         // For now, just navigate to home
         toast({
           title: "Welcome! 👋",
-          description: session.user.email?.includes('@') 
+          description: session.user.email?.includes('@')
             ? "You've successfully signed in with Google."
             : "You've successfully signed in.",
         });
