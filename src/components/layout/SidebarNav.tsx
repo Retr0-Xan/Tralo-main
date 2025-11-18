@@ -40,37 +40,38 @@ const secondaryNav: NavItem[] = [
     { label: "Profile & Branding", path: "/profile", icon: IdCard },
 ];
 
-const renderNavGroup = (items: NavItem[]) => (
-    <div className="space-y-1">
-        {items.map((item) => {
-            const Icon = item.icon;
-            return (
-                <NavLink
-                    key={item.path}
-                    to={item.path}
-                    className={({ isActive }) =>
-                        cn(
-                            "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                            isActive
-                                ? "bg-primary/15 text-primary dark:bg-primary/60 dark:text-primary-foreground"
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        )
-                    }
-                >
-                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 dark:bg-primary/40 dark:text-primary-foreground">
-                        <Icon className="h-5 w-5" />
-                    </span>
-                    <span className="flex-1 text-left">{item.label}</span>
-                    {item.badge && (
-                        <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs text-primary dark:bg-primary/60 dark:text-primary-foreground">{item.badge}</span>
-                    )}
-                </NavLink>
-            );
-        })}
-    </div>
-);
-
 export const SidebarNav = ({ isMobileOpen, onClose }: SidebarNavProps) => {
+    const renderNavGroup = (items: NavItem[]) => (
+        <div className="space-y-1">
+            {items.map((item) => {
+                const Icon = item.icon;
+                return (
+                    <NavLink
+                        key={item.path}
+                        to={item.path}
+                        onClick={onClose}
+                        className={({ isActive }) =>
+                            cn(
+                                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                                isActive
+                                    ? "bg-primary/15 text-primary dark:bg-primary/60 dark:text-primary-foreground"
+                                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            )
+                        }
+                    >
+                        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 dark:bg-primary/40 dark:text-primary-foreground">
+                            <Icon className="h-5 w-5" />
+                        </span>
+                        <span className="flex-1 text-left">{item.label}</span>
+                        {item.badge && (
+                            <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs text-primary dark:bg-primary/60 dark:text-primary-foreground">{item.badge}</span>
+                        )}
+                    </NavLink>
+                );
+            })}
+        </div>
+    );
+
     const content = (
         <Fragment>
             <div className="flex flex-col gap-6">
