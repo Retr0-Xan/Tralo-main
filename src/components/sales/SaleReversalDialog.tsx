@@ -49,8 +49,23 @@ const SaleReversalDialog = () => {
         limit: 100,
       });
 
+      // Fetch all sale IDs that have been reversed
+      const { data: reversedSales, error: reversedError } = await supabase
+        .from('sale_reversals')
+        .select('original_sale_id')
+        .eq('user_id', user.id);
+
+      if (reversedError) throw reversedError;
+
+      const reversedSaleIds = new Set(reversedSales?.map(r => r.original_sale_id) || []);
+
       const filteredSales: Sale[] = analytics
-        .filter((sale) => Number(sale.effective_amount ?? sale.amount ?? 0) > 0 && !sale.is_reversed)
+        .filter((sale) =>
+          Number(sale.effective_amount ?? sale.amount ?? 0) > 0 &&
+          !sale.is_reversed &&
+          !reversedSaleIds.has(sale.sale_id) &&
+          sale.payment_method !== 'reversed'
+        )
         .map((sale) => ({
           id: sale.sale_id,
           product_name: sale.product_name,
@@ -187,12 +202,10 @@ const SaleReversalDialog = () => {
         totalSaleAmount = Number(selectedSale.effective_amount ?? selectedSale.amount);
       }
 
-      // Mark original sale as reversed by zeroing the amount and tagging the payment method
+      // Mark original sale as reversed without changing the amount
       const { error: purchaseUpdateError } = await supabase
         .from('customer_purchases')
         .update({
-          amount: 0,
-          quantity: 0,
           payment_method: 'reversed'
         })
         .eq('id', selectedSale.id);
@@ -202,8 +215,6 @@ const SaleReversalDialog = () => {
       const { error: customerSalesUpdateError } = await supabase
         .from('customer_sales')
         .update({
-          total_amount: 0,
-          quantity: 0,
           payment_method: 'reversed'
         })
         .eq('sale_id', selectedSale.id);

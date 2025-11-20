@@ -29,8 +29,20 @@ const ClientValueRatioDisplay = () => {
         includeReversed: false
       });
 
+      // Fetch all sale IDs that have been reversed
+      const { data: reversedSales } = await supabase
+        .from('sale_reversals')
+        .select('original_sale_id')
+        .eq('user_id', user.id);
+
+      const reversedSaleIds = new Set(reversedSales?.map(r => r.original_sale_id) || []);
+
       if (sales.length > 0) {
-        const filteredSales = sales.filter((sale) => Number(sale.effective_amount ?? sale.amount ?? 0) > 0);
+        const filteredSales = sales.filter((sale) =>
+          Number(sale.effective_amount ?? sale.amount ?? 0) > 0 &&
+          !reversedSaleIds.has(sale.sale_id) &&
+          sale.payment_method !== 'reversed'
+        );
         const uniqueCustomers = filteredSales.length;
         const totalValue = filteredSales.reduce(
           (sum, sale) => sum + Number(sale.effective_amount ?? sale.amount ?? 0),
