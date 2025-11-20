@@ -164,6 +164,39 @@ const RecentDocumentsList = () => {
     const items = content.items || [];
     const totals = content.totals || {};
 
+    // Handle reversal receipts specially
+    const isReversalReceipt = document.document_type === 'reversal_receipt';
+
+    // For reversal receipts, normalize the data structure
+    let normalizedItems = items;
+    let normalizedCustomer = customer;
+    let normalizedTotals = totals;
+
+    if (isReversalReceipt) {
+      normalizedItems = items.map((item: any) => ({
+        name: item.item_name || item.name || item.description || 'Reversed Item',
+        description: item.item_name || item.name || item.description || 'Reversed Item',
+        quantity: item.quantity || 1,
+        unitPrice: item.unit_price || item.unitPrice || 0,
+        total: item.total_price || item.total || 0
+      }));
+
+      normalizedCustomer = {
+        name: content.customer?.name || document.customer_name || 'Walk-in Customer',
+        phone: content.customer?.phone || customer.phone || '',
+        email: customer.email || '',
+        address: customer.address || ''
+      };
+
+      const subtotal = content.original_amount || document.total_amount || 0;
+      normalizedTotals = {
+        subtotal: subtotal,
+        total: subtotal,
+        taxAmount: 0,
+        discount: 0
+      };
+    }
+
     return `
       <!DOCTYPE html>
       <html lang="en">
@@ -311,16 +344,23 @@ const RecentDocumentsList = () => {
           
           <div class="info-box">
             <div class="section-title">Customer Information</div>
-            <div><strong>Name:</strong> ${customer.name || 'N/A'}</div>
-            ${customer.phone ? `<div><strong>Phone:</strong> ${customer.phone}</div>` : ''}
-            ${customer.email ? `<div><strong>Email:</strong> ${customer.email}</div>` : ''}
-            ${customer.address ? `<div><strong>Address:</strong> ${customer.address}</div>` : ''}
+            <div><strong>Name:</strong> ${normalizedCustomer.name || 'N/A'}</div>
+            ${normalizedCustomer.phone ? `<div><strong>Phone:</strong> ${normalizedCustomer.phone}</div>` : ''}
+            ${normalizedCustomer.email ? `<div><strong>Email:</strong> ${normalizedCustomer.email}</div>` : ''}
+            ${normalizedCustomer.address ? `<div><strong>Address:</strong> ${normalizedCustomer.address}</div>` : ''}
           </div>
         </div>
 
-        ${items.length > 0 ? `
+        ${isReversalReceipt && content.notes ? `
+          <div class="notes">
+            <div class="section-title">Reversal Reason</div>
+            <p>${content.notes}</p>
+          </div>
+        ` : ''}
+
+        ${normalizedItems.length > 0 ? `
           <div class="section">
-            <div class="section-title">Items</div>
+            <div class="section-title">${isReversalReceipt ? 'Reversed Items' : 'Items'}</div>
             <table class="items-table">
               <thead>
                 <tr>
@@ -331,7 +371,7 @@ const RecentDocumentsList = () => {
                 </tr>
               </thead>
               <tbody>
-                ${items.map((item: any) => `
+                ${normalizedItems.map((item: any) => `
                   <tr>
                     <td>${item.name || item.description || 'Item'}</td>
                     <td style="text-align: center;">${item.quantity || 1}</td>
@@ -345,13 +385,13 @@ const RecentDocumentsList = () => {
         ` : ''}
 
         <div class="totals-section">
-          <div class="total-row">Subtotal: ¢${(totals.subtotal || 0).toFixed(2)}</div>
-          ${totals.taxAmount ? `<div class="total-row">Tax (${totals.taxRate || 0}%): ¢${totals.taxAmount.toFixed(2)}</div>` : ''}
-          ${totals.discount ? `<div class="total-row">Discount: -¢${totals.discount.toFixed(2)}</div>` : ''}
-          <div class="total-final">Total: ¢${(totals.total || document.total_amount || 0).toFixed(2)}</div>
+          <div class="total-row">Subtotal: ¢${(normalizedTotals.subtotal || 0).toFixed(2)}</div>
+          ${normalizedTotals.taxAmount ? `<div class="total-row">Tax (${normalizedTotals.taxRate || 0}%): ¢${normalizedTotals.taxAmount.toFixed(2)}</div>` : ''}
+          ${normalizedTotals.discount ? `<div class="total-row">Discount: -¢${normalizedTotals.discount.toFixed(2)}</div>` : ''}
+          <div class="total-final">${isReversalReceipt ? 'Reversed Amount' : 'Total'}: ¢${(normalizedTotals.total || document.total_amount || 0).toFixed(2)}</div>
         </div>
 
-        ${content.notes ? `
+        ${!isReversalReceipt && content.notes ? `
           <div class="notes">
             <div class="section-title">Notes</div>
             <p>${content.notes}</p>

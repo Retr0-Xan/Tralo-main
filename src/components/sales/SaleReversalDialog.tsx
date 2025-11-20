@@ -221,10 +221,12 @@ const SaleReversalDialog = () => {
 
       if (customerSalesUpdateError) throw customerSalesUpdateError;
 
+      // Fetch customer name for the reversal document
+      let customerName = 'Walk-in Customer';
       if (selectedSale.customer_phone && selectedSale.customer_phone.toLowerCase() !== 'walk-in') {
         const { data: customerRecord, error: customerFetchError } = await supabase
           .from('customers')
-          .select('id, total_purchases, total_sales_count')
+          .select('id, name, total_purchases, total_sales_count')
           .eq('user_id', user.id)
           .eq('phone_number', selectedSale.customer_phone)
           .maybeSingle();
@@ -232,6 +234,8 @@ const SaleReversalDialog = () => {
         if (customerFetchError) throw customerFetchError;
 
         if (customerRecord) {
+          customerName = customerRecord.name || selectedSale.customer_phone;
+
           const updatedTotal = Math.max(0, Number(customerRecord.total_purchases ?? 0) - Number(totalSaleAmount));
           const updatedCount = Math.max(0, Number(customerRecord.total_sales_count ?? 0) - 1);
 
@@ -264,6 +268,7 @@ const SaleReversalDialog = () => {
         original_amount: Number(selectedSale.effective_amount ?? selectedSale.amount),
         payment_method: selectedSale.payment_method,
         customer: {
+          name: customerName,
           phone: selectedSale.customer_phone
         },
         reversed_at: reversalTimestamp
@@ -278,7 +283,7 @@ const SaleReversalDialog = () => {
           title: `Reversal - ${selectedSale.product_name}`,
           content: reversalDocumentContent as any,
           total_amount: Number(totalSaleAmount),
-          customer_name: selectedSale.customer_phone || 'Walk-in Customer',
+          customer_name: customerName,
           status: 'issued'
         }]);
 
