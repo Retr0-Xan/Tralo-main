@@ -52,15 +52,15 @@ const SalesRecording = () => {
   // Payment details
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit' | 'mobile money' | 'bank transfer'>('cash');
   const [paymentStatus, setPaymentStatus] = useState<'paid_in_full' | 'partial_payment' | 'credit'>('paid_in_full');
-  const [partialPaymentAmount, setPartialPaymentAmount] = useState<number>(0);
+  const [partialPaymentAmount, setPartialPaymentAmount] = useState<number | string>(0);
 
   // Current item being added
   const [selectedProduct, setSelectedProduct] = useState("");
   const [isCustomProduct, setIsCustomProduct] = useState(false);
   const [customProductName, setCustomProductName] = useState("");
-  const [quantity, setQuantity] = useState<number>(1);
-  const [unitPrice, setUnitPrice] = useState<number>(0);
-  const [discount, setDiscount] = useState<number>(0);
+  const [quantity, setQuantity] = useState<number | string>(1);
+  const [unitPrice, setUnitPrice] = useState<number | string>(0);
+  const [discount, setDiscount] = useState<number | string>(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -102,10 +102,15 @@ const SalesRecording = () => {
   }, [user]);
 
   const addProductToSale = () => {
-    if ((!isCustomProduct && !selectedProduct) || (isCustomProduct && !customProductName) || quantity <= 0 || unitPrice <= 0) {
+    // Convert string values to numbers for validation
+    const quantityNum = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
+    const unitPriceNum = typeof unitPrice === 'string' ? parseFloat(unitPrice) : unitPrice;
+    const discountNum = typeof discount === 'string' ? parseFloat(discount) : discount;
+
+    if ((!isCustomProduct && !selectedProduct) || (isCustomProduct && !customProductName) || !quantityNum || quantityNum <= 0 || !unitPriceNum || unitPriceNum <= 0) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields.",
+        description: "Please fill in all required fields with valid values.",
         variant: "destructive",
       });
       return;
@@ -118,7 +123,7 @@ const SalesRecording = () => {
       const inventoryItem = inventoryProducts.find(p => p.product_name === selectedProduct);
       stockAvailable = inventoryItem?.current_stock;
 
-      if (inventoryItem && quantity > inventoryItem.current_stock) {
+      if (inventoryItem && quantityNum > inventoryItem.current_stock) {
         toast({
           title: "Insufficient Stock",
           description: `Only ${inventoryItem.current_stock} units available in stock.`,
@@ -128,14 +133,14 @@ const SalesRecording = () => {
       }
     }
 
-    const itemTotal = (quantity * unitPrice) - discount;
+    const itemTotal = (quantityNum * unitPriceNum) - (discountNum || 0);
 
     const newItem: ProductItem = {
       id: Date.now().toString(),
       productName,
-      quantity,
-      unitPrice,
-      discount,
+      quantity: quantityNum,
+      unitPrice: unitPriceNum,
+      discount: discountNum || 0,
       total: itemTotal,
       isFromInventory: !isCustomProduct,
       stockAvailable
@@ -200,10 +205,12 @@ const SalesRecording = () => {
       return;
     }
 
-    if (paymentStatus === 'partial_payment' && partialPaymentAmount <= 0) {
+    const partialPaymentNum = typeof partialPaymentAmount === 'string' ? parseFloat(partialPaymentAmount) : partialPaymentAmount;
+
+    if (paymentStatus === 'partial_payment' && (!partialPaymentNum || partialPaymentNum <= 0)) {
       toast({
         title: "Error",
-        description: "Please enter the partial payment amount.",
+        description: "Please enter a valid partial payment amount.",
         variant: "destructive",
       });
       return;
@@ -463,8 +470,9 @@ const SalesRecording = () => {
         console.log('Receipt saved to documents');
       }
 
+      const partialPaymentNum = typeof partialPaymentAmount === 'string' ? parseFloat(partialPaymentAmount) : partialPaymentAmount;
       const statusMessage = paymentStatus === 'credit' ? ' on credit' :
-        paymentStatus === 'partial_payment' ? ` with partial payment of ¢${partialPaymentAmount.toFixed(2)}` : '';
+        paymentStatus === 'partial_payment' ? ` with partial payment of ¢${partialPaymentNum.toFixed(2)}` : '';
 
       console.log('=== SALE COMPLETED SUCCESSFULLY ===');
       console.log('Total Amount:', grandTotal);
@@ -614,7 +622,10 @@ const SalesRecording = () => {
                     type="number"
                     min="1"
                     value={quantity}
-                    onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setQuantity(value === '' ? '' : parseInt(value) || 1);
+                    }}
                   />
                 </div>
                 <div>
@@ -627,9 +638,8 @@ const SalesRecording = () => {
                     value={unitPrice}
                     onChange={(e) => {
                       const value = e.target.value;
-                      setUnitPrice(value === '' ? 0 : parseFloat(value) || 0);
+                      setUnitPrice(value === '' ? '' : parseFloat(value) || 0);
                     }}
-                    onFocus={(e) => e.target.select()}
                   />
                   {!isCustomProduct && selectedProduct && (
                     <p className="text-xs text-muted-foreground mt-1">
@@ -645,27 +655,36 @@ const SalesRecording = () => {
                     min="0"
                     step="0.01"
                     value={discount}
-                    onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setDiscount(value === '' ? '' : parseFloat(value) || 0);
+                    }}
                   />
                 </div>
               </div>
 
               {/* Total Value Display */}
-              {(quantity > 0 && unitPrice > 0) && (
-                <div className="bg-primary/10 p-4 rounded-lg border border-primary/20">
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground mb-1">Total Sale Value</p>
-                    <p className="text-2xl font-bold text-primary">
-                      ¢{((quantity * unitPrice) - discount).toFixed(2)}
-                    </p>
-                    {discount > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Subtotal: ¢{(quantity * unitPrice).toFixed(2)} - Discount: ¢{discount.toFixed(2)}
+              {(() => {
+                const qtyNum = typeof quantity === 'string' ? parseFloat(quantity) || 0 : quantity;
+                const priceNum = typeof unitPrice === 'string' ? parseFloat(unitPrice) || 0 : unitPrice;
+                const discNum = typeof discount === 'string' ? parseFloat(discount) || 0 : discount;
+
+                return (qtyNum > 0 && priceNum > 0) && (
+                  <div className="bg-primary/10 p-4 rounded-lg border border-primary/20">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground mb-1">Total Sale Value</p>
+                      <p className="text-2xl font-bold text-primary">
+                        ¢{((qtyNum * priceNum) - discNum).toFixed(2)}
                       </p>
-                    )}
+                      {discNum > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Subtotal: ¢{(qtyNum * priceNum).toFixed(2)} - Discount: ¢{discNum.toFixed(2)}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -706,7 +725,10 @@ const SalesRecording = () => {
                     min="0"
                     step="0.01"
                     value={partialPaymentAmount}
-                    onChange={(e) => setPartialPaymentAmount(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setPartialPaymentAmount(value === '' ? '' : parseFloat(value) || 0);
+                    }}
                   />
                 </div>
               )}
