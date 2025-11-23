@@ -665,35 +665,45 @@ const Profile = () => {
           </CardContent>
         </Card>
 
-        {/* Business Stats */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Business Overview</CardTitle>
-            <CardDescription>
-              Key information about your business
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 rounded-lg bg-primary/10">
-                <div className="text-2xl font-bold text-primary mb-1">10+</div>
-                <div className="text-sm text-muted-foreground">Years in Business</div>
+        {/* Business Stats - Preview */}
+        {(profile.yearsFounded || profile.stockFreshness || profile.communityFocus || profile.qualityCommitment) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Preview - Business Overview</CardTitle>
+              <CardDescription>
+                How your business highlights will appear to customers
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {profile.yearsFounded && (
+                  <div className="text-center p-4 rounded-lg bg-primary/10">
+                    <div className="text-2xl font-bold text-primary mb-1">{profile.yearsFounded}</div>
+                    <div className="text-sm text-muted-foreground">Years in Business</div>
+                  </div>
+                )}
+                {profile.stockFreshness && (
+                  <div className="text-center p-4 rounded-lg bg-green-100 dark:bg-green-900/20">
+                    <div className="text-2xl font-bold text-green-600 mb-1">{profile.stockFreshness}</div>
+                    <div className="text-sm text-muted-foreground">Fresh Stock</div>
+                  </div>
+                )}
+                {profile.communityFocus && (
+                  <div className="text-center p-4 rounded-lg bg-blue-100 dark:bg-blue-900/20">
+                    <div className="text-2xl font-bold text-blue-600 mb-1">{profile.communityFocus}</div>
+                    <div className="text-sm text-muted-foreground">Community Focused</div>
+                  </div>
+                )}
+                {profile.qualityCommitment && (
+                  <div className="text-center p-4 rounded-lg bg-orange-100 dark:bg-orange-900/20">
+                    <div className="text-2xl font-bold text-orange-600 mb-1">{profile.qualityCommitment}</div>
+                    <div className="text-sm text-muted-foreground">Products</div>
+                  </div>
+                )}
               </div>
-              <div className="text-center p-4 rounded-lg bg-green-100 dark:bg-green-900/20">
-                <div className="text-2xl font-bold text-green-600 mb-1">Daily</div>
-                <div className="text-sm text-muted-foreground">Fresh Stock</div>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-blue-100 dark:bg-blue-900/20">
-                <div className="text-2xl font-bold text-blue-600 mb-1">Local</div>
-                <div className="text-sm text-muted-foreground">Community Focused</div>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-orange-100 dark:bg-orange-900/20">
-                <div className="text-2xl font-bold text-orange-600 mb-1">Quality</div>
-                <div className="text-sm text-muted-foreground">Products</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Business Card Generator */}
         <Card>
