@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +8,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import ForgotPassword from "./pages/ForgotPassword";
 import ConfirmEmail from "./pages/ConfirmEmail";
 import Index from "./pages/Index";
@@ -19,11 +21,43 @@ import TradeIndex from "./pages/TradeIndex";
 import Documents from "./pages/Documents";
 import Profile from "./pages/Profile";
 import Reminders from "./pages/Reminders";
+import CompleteProfile from "./pages/CompleteProfile";
 
 const ProtectedLayout = () => {
   const { user, loading } = useAuth();
+  const [checkingProfile, setCheckingProfile] = useState(true);
+  const [hasProfile, setHasProfile] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    const checkBusinessProfile = async () => {
+      if (!user) {
+        setCheckingProfile(false);
+        return;
+      }
+
+      try {
+        const { data: businessProfile, error } = await supabase.from('business_profiles')
+          .select('business_name, owner_name, phone_number')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error || !businessProfile || !businessProfile.business_name || !businessProfile.owner_name || !businessProfile.phone_number) {
+          setHasProfile(false);
+        } else {
+          setHasProfile(true);
+        }
+      } catch (error) {
+        console.error('Error checking business profile:', error);
+        setHasProfile(false);
+      } finally {
+        setCheckingProfile(false);
+      }
+    };
+
+    checkBusinessProfile();
+  }, [user]);
+
+  if (loading || checkingProfile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
@@ -36,6 +70,10 @@ const ProtectedLayout = () => {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  if (!hasProfile) {
+    return <Navigate to="/complete-profile" replace />;
   }
 
   return (
@@ -57,6 +95,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/complete-profile" element={<CompleteProfile />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/confirm-email" element={<ConfirmEmail />} />
               <Route path="/reset-password" element={<ResetPassword />} />

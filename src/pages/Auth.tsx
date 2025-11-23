@@ -51,6 +51,7 @@ const Auth = () => {
   });
 
   const [countrySearch, setCountrySearch] = useState("");
+  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
 
   const africanCountries = [
     "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
@@ -90,14 +91,23 @@ const Auth = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         // Check if this is a new OAuth user without business profile
-        const { data: businessProfile } = await supabase
+        const { data: businessProfile, error } = await supabase
           .from('business_profiles')
-          .select('business_name, owner_name')
+          .select('business_name, owner_name, phone_number')
           .eq('user_id', session.user.id)
           .single();
 
-        // If business profile is incomplete (OAuth user), they'll be prompted in the app
-        // For now, just navigate to home
+        // If business profile doesn't exist or is incomplete, redirect to complete profile
+        if (error || !businessProfile || !businessProfile.business_name || !businessProfile.owner_name || !businessProfile.phone_number) {
+          toast({
+            title: "Complete Your Profile",
+            description: "Please provide your business information to get started.",
+          });
+          navigate("/complete-profile");
+          return;
+        }
+
+        // Profile is complete, navigate to home
         toast({
           title: "Welcome! 👋",
           description: session.user.email?.includes('@')
@@ -113,6 +123,23 @@ const Auth = () => {
     // Listen for auth state changes (OAuth callback)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
+        // Check if business profile is complete
+        const { data: businessProfile, error } = await supabase
+          .from('business_profiles')
+          .select('business_name, owner_name, phone_number')
+          .eq('user_id', session.user.id)
+          .single();
+
+        // If business profile doesn't exist or is incomplete, redirect to complete profile
+        if (error || !businessProfile || !businessProfile.business_name || !businessProfile.owner_name || !businessProfile.phone_number) {
+          toast({
+            title: "Complete Your Profile",
+            description: "Please provide your business information to continue.",
+          });
+          navigate("/complete-profile");
+          return;
+        }
+
         toast({
           title: "Welcome! 👋",
           description: "You've successfully signed in.",
@@ -420,11 +447,15 @@ const Auth = () => {
                             handleInputChange("country", "");
                           }
                         }}
-                        onFocus={() => setCountrySearch("")}
+                        onFocus={() => {
+                          setCountrySearch("");
+                          setShowCountryDropdown(true);
+                        }}
+                        onBlur={() => setTimeout(() => setShowCountryDropdown(false), 200)}
                         className={errors.country ? "border-destructive" : ""}
                         required
                       />
-                      {(countrySearch || !formData.country) && (
+                      {showCountryDropdown && (
                         <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto">
                           {filteredCountries.length > 0 ? (
                             filteredCountries.map((country) => (
@@ -435,6 +466,7 @@ const Auth = () => {
                                 onClick={() => {
                                   handleInputChange("country", country);
                                   setCountrySearch("");
+                                  setShowCountryDropdown(false);
                                 }}
                               >
                                 {country}
