@@ -23,6 +23,7 @@ const signUpSchema = z.object({
   password: z.string().min(6, { message: "Password must be at least 6 characters" }).max(100, { message: "Password must be less than 100 characters" }),
   businessName: z.string().trim().min(1, { message: "Business name is required" }).max(100, { message: "Business name must be less than 100 characters" }),
   ownerName: z.string().trim().min(1, { message: "Owner name is required" }).max(100, { message: "Owner name must be less than 100 characters" }),
+  phoneNumber: z.string().trim().min(10, { message: "Phone number must be at least 10 digits" }).max(20, { message: "Phone number must be less than 20 characters" }),
   businessAddress: z.string().trim().min(1, { message: "Business address is required" }).max(200, { message: "Business address must be less than 200 characters" }),
   city: z.string().trim().min(1, { message: "City is required" }).max(100, { message: "City must be less than 100 characters" }),
   country: z.string().trim().min(1, { message: "Country is required" }).max(100, { message: "Country must be less than 100 characters" }),
@@ -41,12 +42,32 @@ const Auth = () => {
     email: "",
     password: "",
     businessName: "",
+    phoneNumber: "",
     businessAddress: "",
     city: "",
     country: "",
     businessType: "",
     ownerName: ""
   });
+
+  const [countrySearch, setCountrySearch] = useState("");
+
+  const africanCountries = [
+    "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi",
+    "Cabo Verde", "Cameroon", "Central African Republic", "Chad", "Comoros",
+    "Congo", "Côte d'Ivoire", "Democratic Republic of the Congo", "Djibouti",
+    "Egypt", "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia",
+    "Gabon", "Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Kenya",
+    "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali",
+    "Mauritania", "Mauritius", "Morocco", "Mozambique", "Namibia",
+    "Niger", "Nigeria", "Rwanda", "Sao Tome and Principe", "Senegal",
+    "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan",
+    "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"
+  ];
+
+  const filteredCountries = africanCountries.filter(country =>
+    country.toLowerCase().includes(countrySearch.toLowerCase())
+  );
 
   // Check if user is already logged in and handle OAuth callback
   useEffect(() => {
@@ -194,6 +215,7 @@ const Auth = () => {
           data: {
             business_name: validatedData.businessName,
             owner_name: validatedData.ownerName,
+            phone_number: validatedData.phoneNumber,
             business_address: validatedData.businessAddress,
             location: `${validatedData.city}, ${validatedData.country}`,
             business_type: validatedData.businessType,
@@ -339,6 +361,21 @@ const Auth = () => {
                   )}
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="phoneNumber">Phone Number</Label>
+                  <Input
+                    id="phoneNumber"
+                    type="tel"
+                    placeholder="Enter your phone number"
+                    value={formData.phoneNumber}
+                    onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
+                    className={errors.phoneNumber ? "border-destructive" : ""}
+                    required
+                  />
+                  {errors.phoneNumber && (
+                    <p className="text-sm text-destructive">{errors.phoneNumber}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="businessAddress">Business Address</Label>
                   <Input
                     id="businessAddress"
@@ -369,14 +406,48 @@ const Auth = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="country">Country</Label>
-                    <Input
-                      id="country"
-                      placeholder="Enter country"
-                      value={formData.country}
-                      onChange={(e) => handleInputChange("country", e.target.value)}
-                      className={errors.country ? "border-destructive" : ""}
-                      required
-                    />
+                    <div className="relative">
+                      <Input
+                        id="country"
+                        placeholder="Search or select country"
+                        value={formData.country || countrySearch}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setCountrySearch(value);
+                          if (africanCountries.includes(value)) {
+                            handleInputChange("country", value);
+                          } else {
+                            handleInputChange("country", "");
+                          }
+                        }}
+                        onFocus={() => setCountrySearch("")}
+                        className={errors.country ? "border-destructive" : ""}
+                        required
+                      />
+                      {(countrySearch || !formData.country) && (
+                        <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+                          {filteredCountries.length > 0 ? (
+                            filteredCountries.map((country) => (
+                              <button
+                                key={country}
+                                type="button"
+                                className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
+                                onClick={() => {
+                                  handleInputChange("country", country);
+                                  setCountrySearch("");
+                                }}
+                              >
+                                {country}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">
+                              No countries found
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     {errors.country && (
                       <p className="text-sm text-destructive">{errors.country}</p>
                     )}
