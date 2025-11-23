@@ -60,8 +60,10 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
 
     const breadcrumbs = useMemo(() => buildBreadcrumbs(location.pathname), [location.pathname]);
 
-    const initials = user?.user_metadata?.owner_name
-        ? user.user_metadata.owner_name
+    const displayName = user?.user_metadata?.owner_name || user?.user_metadata?.full_name || user?.user_metadata?.name;
+
+    const initials = displayName
+        ? displayName
             .split(" ")
             .map((part: string) => part.charAt(0).toUpperCase())
             .slice(0, 2)
@@ -126,7 +128,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
                             <DropdownMenuContent align="end" className="w-56">
                                 <DropdownMenuLabel>
                                     <div className="flex flex-col">
-                                        <span className="text-sm font-medium text-foreground">{user?.user_metadata?.owner_name ?? user?.email}</span>
+                                        <span className="text-sm font-medium text-foreground">{user?.user_metadata?.owner_name ?? user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email}</span>
                                         <span className="text-xs text-muted-foreground">Signed in</span>
                                     </div>
                                 </DropdownMenuLabel>
