@@ -238,7 +238,7 @@ const CompleteProfile = () => {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="city">City</Label>
+                                <Label htmlFor="city">City/Town</Label>
                                 <Input
                                     id="city"
                                     placeholder="Enter city"
