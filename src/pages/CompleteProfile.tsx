@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import TraloLogo from "@/components/TraloLogo";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { z } from "zod";
 
 const profileSchema = z.object({
@@ -22,9 +23,11 @@ const profileSchema = z.object({
 
 const CompleteProfile = () => {
     const [isLoading, setIsLoading] = useState(false);
+    const [checkingProfile, setCheckingProfile] = useState(true);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const { toast } = useToast();
     const navigate = useNavigate();
+    const { user, loading: authLoading } = useAuth();
 
     const [formData, setFormData] = useState({
         businessName: "",
@@ -55,6 +58,38 @@ const CompleteProfile = () => {
     const filteredCountries = africanCountries.filter(country =>
         country.toLowerCase().includes(countrySearch.toLowerCase())
     );
+
+    // Check if user already has a complete profile
+    useEffect(() => {
+        const checkExistingProfile = async () => {
+            if (authLoading) return;
+
+            if (!user) {
+                navigate("/auth", { replace: true });
+                return;
+            }
+
+            try {
+                const { data: businessProfile, error } = await supabase
+                    .from('business_profiles')
+                    .select('business_name, owner_name, phone_number')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (!error && businessProfile && businessProfile.business_name && businessProfile.owner_name && businessProfile.phone_number) {
+                    // Profile is complete, redirect to home
+                    navigate("/", { replace: true });
+                } else {
+                    setCheckingProfile(false);
+                }
+            } catch (error) {
+                console.error('Error checking profile:', error);
+                setCheckingProfile(false);
+            }
+        };
+
+        checkExistingProfile();
+    }, [user, authLoading, navigate]);
 
     const handleInputChange = (field: string, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -157,6 +192,17 @@ const CompleteProfile = () => {
             setIsLoading(false);
         }
     };
+
+    if (authLoading || checkingProfile) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-center">
+                    <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
+                    <p className="text-muted-foreground">Loading...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-background flex items-center justify-center p-4">
