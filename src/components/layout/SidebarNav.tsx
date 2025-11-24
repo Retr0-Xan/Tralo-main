@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
     LayoutDashboard,
     Boxes,
@@ -41,6 +41,13 @@ const secondaryNav: NavItem[] = [
 ];
 
 export const SidebarNav = ({ isMobileOpen, onClose }: SidebarNavProps) => {
+    const navigate = useNavigate();
+
+    const handleLogoClick = () => {
+        navigate("/");
+        onClose();
+    };
+
     const renderNavGroup = (items: NavItem[]) => (
         <div className="space-y-1">
             {items.map((item) => {
@@ -76,9 +83,12 @@ export const SidebarNav = ({ isMobileOpen, onClose }: SidebarNavProps) => {
         <Fragment>
             <div className="flex flex-col gap-6">
                 <div className="px-2">
-                    <div className="flex h-16 items-center justify-center overflow-hidden">
+                    <button
+                        onClick={handleLogoClick}
+                        className="flex h-16 w-full items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                    >
                         <TraloLogo className="h-full w-full transform scale-[0.875] object-contain" />
-                    </div>
+                    </button>
                 </div>
 
                 <div className="space-y-6">
@@ -138,7 +148,9 @@ export const SidebarNav = ({ isMobileOpen, onClose }: SidebarNavProps) => {
                 )}
             >
                 <div className="mb-6 flex items-center justify-between px-2">
-                    <TraloLogo />
+                    <button onClick={handleLogoClick} className="cursor-pointer hover:opacity-80 transition-opacity">
+                        <TraloLogo />
+                    </button>
                     <button
                         type="button"
                         onClick={onClose}
