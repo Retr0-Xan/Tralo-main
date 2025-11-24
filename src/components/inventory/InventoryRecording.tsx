@@ -659,6 +659,13 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              {/* Header Row */}
+              <div className="hidden md:grid grid-cols-4 gap-2 px-3 pb-2 text-xs font-medium text-muted-foreground border-b">
+                <div className="col-span-2">Product Name & Category</div>
+                <div>Quantity & Unit</div>
+                <div>Cost & Selling Price</div>
+              </div>
+
               {bulkItems.map((item, index) => (
                 <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-background">
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2">
