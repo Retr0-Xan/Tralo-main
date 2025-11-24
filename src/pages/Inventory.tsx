@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { Package, BarChart3, ClipboardCheck } from "lucide-react";
+import { Package, BarChart3, ClipboardCheck, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/PageHeader";
 import InventoryRecording from "@/components/inventory/InventoryRecording";
 import InventoryDashboard from "@/components/inventory/InventoryDashboard";
+import InventoryGroupsManager from "@/components/inventory/InventoryGroupsManager";
 
 const Inventory = () => {
-  const [activeTab, setActiveTab] = useState<"recording" | "dashboard">("recording");
+  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "groups">("recording");
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
 
   return (
     <div className="space-y-6">
@@ -28,7 +30,10 @@ const Inventory = () => {
           <Button
             size="sm"
             variant={activeTab === "recording" ? "default" : "ghost"}
-            onClick={() => setActiveTab("recording")}
+            onClick={() => {
+              setActiveTab("recording");
+              setSelectedGroup(null);
+            }}
             className="rounded-xl px-4 py-2"
           >
             <Package className="mr-2 h-4 w-4" />
@@ -43,9 +48,29 @@ const Inventory = () => {
             <BarChart3 className="mr-2 h-4 w-4" />
             Inventory Analytics
           </Button>
+          <Button
+            size="sm"
+            variant={activeTab === "groups" ? "default" : "ghost"}
+            onClick={() => setActiveTab("groups")}
+            className="rounded-xl px-4 py-2"
+          >
+            <FolderOpen className="mr-2 h-4 w-4" />
+            Inventory Groups
+          </Button>
         </div>
         <CardContent className="px-4 py-6 md:px-6">
-          {activeTab === "recording" ? <InventoryRecording /> : <InventoryDashboard />}
+          {activeTab === "recording" ? (
+            <InventoryRecording selectedGroup={selectedGroup} onGroupCleared={() => setSelectedGroup(null)} />
+          ) : activeTab === "dashboard" ? (
+            <InventoryDashboard />
+          ) : (
+            <InventoryGroupsManager
+              onSelectGroup={(group) => {
+                setSelectedGroup(group);
+                setActiveTab("recording");
+              }}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

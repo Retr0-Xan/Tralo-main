@@ -6,13 +6,22 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Sparkles, Trash2, List } from "lucide-react";
+import { Plus, Sparkles, Trash2, List, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import SupplierForm from "./SupplierForm";
 import { useQueryClient } from "@tanstack/react-query";
 import { inventoryOverviewQueryKey } from "@/hooks/useInventoryOverview";
 import { homeMetricsQueryKey } from "@/hooks/useHomeMetrics";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface BulkInventoryItem {
   id: string;
@@ -20,9 +29,29 @@ interface BulkInventoryItem {
   quantity: number;
   costPrice: number;
   sellingPrice: number;
+  internationalUnit?: string;
+  localUnit?: string;
+  customUnit?: string;
+  category?: string;
+  supplierId?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+  notes?: string;
 }
 
-const InventoryRecording = () => {
+interface InventoryGroup {
+  id: string;
+  group_name: string;
+  description: string | null;
+  items?: any[];
+}
+
+interface InventoryRecordingProps {
+  selectedGroup?: InventoryGroup | null;
+  onGroupCleared?: () => void;
+}
+
+const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordingProps = {}) => {
   const [productName, setProductName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [costPrice, setCostPrice] = useState("");
@@ -43,6 +72,13 @@ const InventoryRecording = () => {
   const [recordAsExpense, setRecordAsExpense] = useState(false);
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [bulkItems, setBulkItems] = useState<BulkInventoryItem[]>([]);
+  const [saveToGroup, setSaveToGroup] = useState(false);
+  const [isSaveGroupDialogOpen, setIsSaveGroupDialogOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupDescription, setNewGroupDescription] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const [availableGroups, setAvailableGroups] = useState<InventoryGroup[]>([]);
+  const [loadedFromGroup, setLoadedFromGroup] = useState<InventoryGroup | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -68,7 +104,57 @@ const InventoryRecording = () => {
 
   useEffect(() => {
     fetchSuppliers();
+    fetchInventoryGroups();
   }, []);
+
+  useEffect(() => {
+    // Load items from selected group into bulk mode
+    if (selectedGroup && selectedGroup.items && selectedGroup.items.length > 0) {
+      setIsBulkMode(true);
+      setLoadedFromGroup(selectedGroup);
+
+      const loadedItems: BulkInventoryItem[] = selectedGroup.items.map((item: any) => ({
+        id: item.id || Date.now().toString() + Math.random(),
+        productName: item.product_name,
+        quantity: item.quantity,
+        costPrice: item.cost_price || 0,
+        sellingPrice: item.selling_price || 0,
+        internationalUnit: item.international_unit || "",
+        localUnit: item.local_unit || "",
+        customUnit: item.custom_unit || "",
+        category: item.category || "",
+        supplierId: item.supplier_id || "",
+        batchNumber: item.batch_number || "",
+        expiryDate: item.expiry_date || "",
+        notes: item.notes || "",
+      }));
+
+      setBulkItems(loadedItems);
+
+      toast({
+        title: "Group Loaded",
+        description: `Loaded ${loadedItems.length} items from "${selectedGroup.group_name}". Edit as needed before saving.`,
+      });
+    }
+  }, [selectedGroup]);
+
+  const fetchInventoryGroups = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('inventory_groups')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('group_name');
+
+      if (error) throw error;
+      setAvailableGroups(data || []);
+    } catch (error) {
+      console.error('Error fetching inventory groups:', error);
+    }
+  };
 
   const fetchSuppliers = async () => {
     try {
@@ -126,6 +212,85 @@ const InventoryRecording = () => {
     });
   };
 
+  const saveToInventoryGroup = async (userId: string) => {
+    try {
+      let groupId = selectedGroupId;
+
+      // Create new group if needed
+      if (saveToGroup && !selectedGroupId && newGroupName.trim()) {
+        const { data: newGroup, error: groupError } = await supabase
+          .from('inventory_groups')
+          .insert({
+            user_id: userId,
+            group_name: newGroupName.trim(),
+            description: newGroupDescription.trim() || null,
+          })
+          .select('id')
+          .single();
+
+        if (groupError) {
+          if (groupError.code === '23505') {
+            toast({
+              title: "Warning",
+              description: "Group name already exists, items saved to inventory without grouping",
+              variant: "destructive",
+            });
+            return;
+          }
+          throw groupError;
+        }
+
+        groupId = newGroup.id;
+      }
+
+      // Save items to group
+      if (groupId && bulkItems.length > 0) {
+        const groupItems = bulkItems.map(item => ({
+          group_id: groupId,
+          product_name: item.productName,
+          quantity: item.quantity,
+          cost_price: item.costPrice || null,
+          selling_price: item.sellingPrice || null,
+          international_unit: item.internationalUnit || null,
+          local_unit: item.localUnit || null,
+          custom_unit: item.customUnit || null,
+          category: item.category || null,
+          supplier_id: item.supplierId || null,
+          batch_number: item.batchNumber || null,
+          expiry_date: item.expiryDate || null,
+          notes: item.notes || null,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('inventory_group_items')
+          .insert(groupItems);
+
+        if (itemsError) throw itemsError;
+
+        toast({
+          title: "Group Saved",
+          description: `Items saved to inventory group "${newGroupName || availableGroups.find(g => g.id === groupId)?.group_name}"`,
+        });
+
+        // Refresh groups list
+        fetchInventoryGroups();
+
+        // Reset group form
+        setNewGroupName("");
+        setNewGroupDescription("");
+        setSelectedGroupId("");
+        setSaveToGroup(false);
+      }
+    } catch (error) {
+      console.error('Error saving to inventory group:', error);
+      toast({
+        title: "Warning",
+        description: "Items saved to inventory, but group save failed",
+        variant: "destructive",
+      });
+    }
+  };
+
   const processBulkInventory = async () => {
     if (bulkItems.length === 0) {
       toast({
@@ -141,6 +306,11 @@ const InventoryRecording = () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) throw new Error('Not authenticated');
       const userId = authUser.id;
+
+      // Save to inventory group first if requested
+      if (saveToGroup) {
+        await saveToInventoryGroup(userId);
+      }
 
       let successCount = 0;
       let errorCount = 0;
@@ -420,50 +590,129 @@ const InventoryRecording = () => {
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
             {isBulkMode ? 'Add Multiple Products (Bulk)' : 'Add New Product to Inventory'}
+            {loadedFromGroup && (
+              <span className="text-sm font-normal text-muted-foreground">
+                (from "{loadedFromGroup.group_name}")
+              </span>
+            )}
           </CardTitle>
-          <Button
-            type="button"
-            variant={isBulkMode ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setIsBulkMode(!isBulkMode);
-              if (!isBulkMode) {
-                // Reset single form when switching to bulk
-                setProductName("");
-                setQuantity("");
-                setCostPrice("");
-                setSellingPrice("");
-                setSelectedProduct("");
-              }
-            }}
-          >
-            <List className="w-4 h-4 mr-2" />
-            {isBulkMode ? 'Switch to Single' : 'Add Bulk'}
-          </Button>
+          <div className="flex gap-2">
+            {loadedFromGroup && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setBulkItems([]);
+                  setLoadedFromGroup(null);
+                  setIsBulkMode(false);
+                  if (onGroupCleared) onGroupCleared();
+                  toast({
+                    title: "Group Cleared",
+                    description: "Inventory group items cleared",
+                  });
+                }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Clear Group
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant={isBulkMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setIsBulkMode(!isBulkMode);
+                if (!isBulkMode) {
+                  // Reset single form when switching to bulk
+                  setProductName("");
+                  setQuantity("");
+                  setCostPrice("");
+                  setSellingPrice("");
+                  setSelectedProduct("");
+                }
+              }}
+            >
+              <List className="w-4 h-4 mr-2" />
+              {isBulkMode ? 'Switch to Single' : 'Add Bulk'}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
         {isBulkMode && bulkItems.length > 0 && (
           <Card className="mb-6 border-primary/20 bg-primary/5">
             <CardHeader>
-              <CardTitle className="text-lg">Bulk Items ({bulkItems.length})</CardTitle>
+              <CardTitle className="text-lg">
+                Bulk Items ({bulkItems.length})
+                {loadedFromGroup && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    - You can edit quantities and prices below before saving
+                  </span>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {bulkItems.map((item) => (
+              {bulkItems.map((item, index) => (
                 <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-background">
-                  <div className="flex-1">
-                    <div className="font-medium">{item.productName}</div>
-                    <div className="text-sm text-muted-foreground">
-                      Qty: {item.quantity} | Cost: ¢{item.costPrice.toFixed(2)} | Selling: ¢{item.sellingPrice.toFixed(2)}
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <div className="md:col-span-2">
+                      <div className="font-medium">{item.productName}</div>
+                      {item.category && (
+                        <div className="text-xs text-muted-foreground">{item.category}</div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const newItems = [...bulkItems];
+                          newItems[index].quantity = parseInt(e.target.value) || 0;
+                          setBulkItems(newItems);
+                        }}
+                        className="w-20 h-8 text-sm"
+                        placeholder="Qty"
+                      />
+                      <span className="text-xs text-muted-foreground self-center">
+                        {item.localUnit || item.internationalUnit || "units"}
+                      </span>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        type="number"
+                        value={item.costPrice}
+                        onChange={(e) => {
+                          const newItems = [...bulkItems];
+                          newItems[index].costPrice = parseFloat(e.target.value) || 0;
+                          setBulkItems(newItems);
+                        }}
+                        className="w-24 h-8 text-sm"
+                        placeholder="Cost"
+                        step="0.01"
+                      />
+                      <Input
+                        type="number"
+                        value={item.sellingPrice}
+                        onChange={(e) => {
+                          const newItems = [...bulkItems];
+                          newItems[index].sellingPrice = parseFloat(e.target.value) || 0;
+                          setBulkItems(newItems);
+                        }}
+                        className="w-24 h-8 text-sm"
+                        placeholder="Selling"
+                        step="0.01"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFromBulkList(item.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeFromBulkList(item.id)}
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
                 </div>
               ))}
               <Button
@@ -670,6 +919,103 @@ const InventoryRecording = () => {
             <p className="text-sm text-muted-foreground">
               This will also create an expense record for the total cost of this inventory purchase.
             </p>
+          )}
+
+          {/* Save to Inventory Group Option */}
+          {isBulkMode && bulkItems.length > 0 && (
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="save-to-group"
+                  checked={saveToGroup}
+                  onCheckedChange={(checked) => setSaveToGroup(checked === true)}
+                />
+                <Label
+                  htmlFor="save-to-group"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Save as Inventory Group for quick re-ordering
+                </Label>
+              </div>
+              {saveToGroup && (
+                <div className="ml-6 space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Save these items as a group to quickly record them again in the future.
+                  </p>
+                  <div className="flex gap-2">
+                    <Dialog open={isSaveGroupDialogOpen} onOpenChange={setIsSaveGroupDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button type="button" variant="outline" size="sm">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create New Group
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Create Inventory Group</DialogTitle>
+                          <DialogDescription>
+                            Give this group a name to save these items for quick re-ordering
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="new-group-name">Group Name *</Label>
+                            <Input
+                              id="new-group-name"
+                              placeholder="e.g., Weekly Restock, Monthly Order"
+                              value={newGroupName}
+                              onChange={(e) => setNewGroupName(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="new-group-description">Description (Optional)</Label>
+                            <Textarea
+                              id="new-group-description"
+                              placeholder="Notes about this group..."
+                              rows={2}
+                              value={newGroupDescription}
+                              onChange={(e) => setNewGroupDescription(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsSaveGroupDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={async () => {
+                            if (!newGroupName.trim()) {
+                              toast({
+                                title: "Error",
+                                description: "Group name is required",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            setIsSaveGroupDialogOpen(false);
+                          }}>
+                            Create Group
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    {availableGroups.length > 0 && (
+                      <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Or select existing..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableGroups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.group_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Submit Button */}
