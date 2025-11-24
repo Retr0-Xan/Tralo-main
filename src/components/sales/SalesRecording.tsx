@@ -47,6 +47,9 @@ const SalesRecording = () => {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [includeVAT, setIncludeVAT] = useState(false);
+  const [includeNHIL, setIncludeNHIL] = useState(false);
+  const [includeGETFund, setIncludeGETFund] = useState(false);
+  const [includeCovid19, setIncludeCovid19] = useState(false);
   const [additionalNotes, setAdditionalNotes] = useState("");
 
   // Payment details
@@ -175,11 +178,27 @@ const SalesRecording = () => {
   };
 
   const calculateVAT = () => {
-    return includeVAT ? calculateSubtotal() * 0.125 : 0;
+    return includeVAT ? calculateSubtotal() * 0.15 : 0;
+  };
+
+  const calculateNHIL = () => {
+    return includeNHIL ? calculateSubtotal() * 0.025 : 0;
+  };
+
+  const calculateGETFund = () => {
+    return includeGETFund ? calculateSubtotal() * 0.025 : 0;
+  };
+
+  const calculateCovid19 = () => {
+    return includeCovid19 ? calculateSubtotal() * 0.01 : 0;
+  };
+
+  const calculateTotalTaxes = () => {
+    return calculateVAT() + calculateNHIL() + calculateGETFund() + calculateCovid19();
   };
 
   const calculateGrandTotal = () => {
-    return calculateSubtotal() + calculateVAT();
+    return calculateSubtotal() + calculateTotalTaxes();
   };
 
   const saveSaleOnly = async () => {
@@ -491,6 +510,9 @@ const SalesRecording = () => {
       setCustomerName("");
       setCustomerPhone("");
       setIncludeVAT(false);
+      setIncludeNHIL(false);
+      setIncludeGETFund(false);
+      setIncludeCovid19(false);
       setAdditionalNotes("");
       setPaymentMethod('cash');
       setPaymentStatus('paid_in_full');
@@ -834,14 +856,42 @@ const SalesRecording = () => {
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="includeVAT"
-            checked={includeVAT}
-            onCheckedChange={(checked) => setIncludeVAT(!!checked)}
-          />
-          <Label htmlFor="includeVAT">Include VAT (12.5%)</Label>
-          <span className="text-sm text-muted-foreground">If applicable to your business</span>
+        <div className="space-y-3">
+          <Label className="text-base font-semibold">Taxes (Select if applicable)</Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="includeVAT"
+                checked={includeVAT}
+                onCheckedChange={(checked) => setIncludeVAT(!!checked)}
+              />
+              <Label htmlFor="includeVAT" className="cursor-pointer">VAT (15%)</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="includeNHIL"
+                checked={includeNHIL}
+                onCheckedChange={(checked) => setIncludeNHIL(!!checked)}
+              />
+              <Label htmlFor="includeNHIL" className="cursor-pointer">NHIL (2.5%)</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="includeGETFund"
+                checked={includeGETFund}
+                onCheckedChange={(checked) => setIncludeGETFund(!!checked)}
+              />
+              <Label htmlFor="includeGETFund" className="cursor-pointer">GETFund (2.5%)</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="includeCovid19"
+                checked={includeCovid19}
+                onCheckedChange={(checked) => setIncludeCovid19(!!checked)}
+              />
+              <Label htmlFor="includeCovid19" className="cursor-pointer">COVID-19 Levy (1%)</Label>
+            </div>
+          </div>
         </div>
 
         <Card>
@@ -864,9 +914,33 @@ const SalesRecording = () => {
               <span>¢{calculateSubtotal().toFixed(2)}</span>
             </div>
             {includeVAT && (
-              <div className="flex justify-between py-1">
-                <span>VAT (12.5%): </span>
+              <div className="flex justify-between py-1 text-sm">
+                <span>VAT (15%): </span>
                 <span>¢{calculateVAT().toFixed(2)}</span>
+              </div>
+            )}
+            {includeNHIL && (
+              <div className="flex justify-between py-1 text-sm">
+                <span>NHIL (2.5%): </span>
+                <span>¢{calculateNHIL().toFixed(2)}</span>
+              </div>
+            )}
+            {includeGETFund && (
+              <div className="flex justify-between py-1 text-sm">
+                <span>GETFund (2.5%): </span>
+                <span>¢{calculateGETFund().toFixed(2)}</span>
+              </div>
+            )}
+            {includeCovid19 && (
+              <div className="flex justify-between py-1 text-sm">
+                <span>COVID-19 Levy (1%): </span>
+                <span>¢{calculateCovid19().toFixed(2)}</span>
+              </div>
+            )}
+            {calculateTotalTaxes() > 0 && (
+              <div className="flex justify-between py-1 text-sm border-t mt-1 pt-1">
+                <span>Total Taxes: </span>
+                <span>¢{calculateTotalTaxes().toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between py-1 font-bold text-lg border-t pt-2">
