@@ -79,6 +79,12 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [availableGroups, setAvailableGroups] = useState<InventoryGroup[]>([]);
   const [loadedFromGroup, setLoadedFromGroup] = useState<InventoryGroup | null>(null);
+  const [isAddToGroupDialogOpen, setIsAddToGroupDialogOpen] = useState(false);
+  const [pendingItemForGroup, setPendingItemForGroup] = useState<any>(null);
+  const [selectedGroupForSingleItem, setSelectedGroupForSingleItem] = useState<string>("");
+  const [createNewGroupForSingleItem, setCreateNewGroupForSingleItem] = useState(false);
+  const [newSingleItemGroupName, setNewSingleItemGroupName] = useState("");
+  const [newSingleItemGroupDescription, setNewSingleItemGroupDescription] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -1018,20 +1024,498 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
             </div>
           )}
 
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            className="w-full flex items-center gap-2"
-            disabled={loading}
-          >
-            <Plus className="w-4 h-4" />
-            {loading
-              ? 'Adding to Inventory...'
-              : isBulkMode
-                ? 'Add to Bulk List'
-                : 'Add Product to Inventory 🚀'}
-          </Button>
+          {/* Submit Buttons */}
+          {isBulkMode ? (
+            <Button
+              type="submit"
+              className="w-full flex items-center gap-2"
+              disabled={loading}
+            >
+              <Plus className="w-4 h-4" />
+              {loading ? 'Adding to Inventory...' : 'Add to Bulk List'}
+            </Button>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Button
+                type="submit"
+                variant="default"
+                className="flex items-center gap-2"
+                disabled={loading}
+              >
+                <Plus className="w-4 h-4" />
+                {loading ? 'Adding...' : 'Add to Inventory'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex items-center gap-2"
+                disabled={loading}
+                onClick={() => {
+                  const finalProductName = productName || (selectedProduct !== 'custom' ? selectedProduct : '');
+
+                  if (!finalProductName.trim() || !quantity.trim()) {
+                    toast({
+                      title: "Error",
+                      description: "Product name and quantity are required",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+
+                  // Store the current item data
+                  setPendingItemForGroup({
+                    productName: finalProductName.trim(),
+                    quantity: parseInt(quantity),
+                    costPrice: costPrice ? parseFloat(costPrice) : 0,
+                    sellingPrice: sellingPrice ? parseFloat(sellingPrice) : 0,
+                    internationalUnit: internationalUnit || "",
+                    localUnit: localUnit || "",
+                    customUnit: customUnit || "",
+                    category: selectedCategory || "",
+                    supplierId: selectedSupplier || "",
+                    batchNumber: batchNumber || "",
+                    expiryDate: expiryDate || "",
+                    notes: supplierNotes || "",
+                  });
+
+                  setIsAddToGroupDialogOpen(true);
+                }}
+              >
+                <Save className="w-4 h-4" />
+                Add & Save to Group
+              </Button>
+            </div>
+          )}
         </form>
+
+        {/* Add to Group Dialog */}
+        <Dialog open={isAddToGroupDialogOpen} onOpenChange={setIsAddToGroupDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Save to Inventory Group</DialogTitle>
+              <DialogDescription>
+                Select an existing group or create a new one to add this item
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {!createNewGroupForSingleItem ? (
+                <>
+                  {availableGroups.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Select Existing Group</Label>
+                      <Select value={selectedGroupForSingleItem} onValueChange={setSelectedGroupForSingleItem}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose a group..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableGroups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>
+                              {group.group_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCreateNewGroupForSingleItem(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create New Group
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-single-group-name">New Group Name *</Label>
+                    <Input
+                      id="new-single-group-name"
+                      placeholder="e.g., Weekly Restock"
+                      value={newSingleItemGroupName}
+                      onChange={(e) => setNewSingleItemGroupName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-single-group-description">Description (Optional)</Label>
+                    <Textarea
+                      id="new-single-group-description"
+                      placeholder="Notes about this group..."
+                      rows={2}
+                      value={newSingleItemGroupDescription}
+                      onChange={(e) => setNewSingleItemGroupDescription(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCreateNewGroupForSingleItem(false);
+                      setNewSingleItemGroupName("");
+                      setNewSingleItemGroupDescription("");
+                    }}
+                  >
+                    ← Back to Select Existing
+                  </Button>
+                </>
+              )}
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsAddToGroupDialogOpen(false);
+                  setCreateNewGroupForSingleItem(false);
+                  setSelectedGroupForSingleItem("");
+                  setNewSingleItemGroupName("");
+                  setNewSingleItemGroupDescription("");
+                  setPendingItemForGroup(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  try {
+                    setLoading(true);
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) throw new Error('Not authenticated');
+                    const userId = user.id;
+
+                    let groupId = selectedGroupForSingleItem;
+
+                    // Create new group if needed
+                    if (createNewGroupForSingleItem) {
+                      if (!newSingleItemGroupName.trim()) {
+                        toast({
+                          title: "Error",
+                          description: "Group name is required",
+                          variant: "destructive",
+                        });
+                        setLoading(false);
+                        return;
+                      }
+
+                      const { data: newGroup, error: groupError } = await supabase
+                        .from('inventory_groups')
+                        .insert({
+                          user_id: userId,
+                          group_name: newSingleItemGroupName.trim(),
+                          description: newSingleItemGroupDescription.trim() || null,
+                        })
+                        .select('id')
+                        .single();
+
+                      if (groupError) {
+                        if (groupError.code === '23505') {
+                          toast({
+                            title: "Error",
+                            description: "A group with this name already exists",
+                            variant: "destructive",
+                          });
+                          setLoading(false);
+                          return;
+                        }
+                        throw groupError;
+                      }
+
+                      groupId = newGroup.id;
+                    } else if (!groupId) {
+                      toast({
+                        title: "Error",
+                        description: "Please select a group or create a new one",
+                        variant: "destructive",
+                      });
+                      setLoading(false);
+                      return;
+                    }
+
+                    // Add item to bulk list and switch to bulk mode
+                    const newItem: BulkInventoryItem = {
+                      id: Date.now().toString(),
+                      productName: pendingItemForGroup.productName,
+                      quantity: pendingItemForGroup.quantity,
+                      costPrice: pendingItemForGroup.costPrice,
+                      sellingPrice: pendingItemForGroup.sellingPrice,
+                      internationalUnit: pendingItemForGroup.internationalUnit,
+                      localUnit: pendingItemForGroup.localUnit,
+                      customUnit: pendingItemForGroup.customUnit,
+                      category: pendingItemForGroup.category,
+                      supplierId: pendingItemForGroup.supplierId,
+                      batchNumber: pendingItemForGroup.batchNumber,
+                      expiryDate: pendingItemForGroup.expiryDate,
+                      notes: pendingItemForGroup.notes,
+                    };
+
+                    setBulkItems([...bulkItems, newItem]);
+                    setIsBulkMode(true);
+                    setSelectedGroupId(groupId);
+                    setSaveToGroup(true);
+
+                    // Refresh groups list
+                    await fetchInventoryGroups();
+
+                    toast({
+                      title: "Item Added to Bulk List",
+                      description: `${pendingItemForGroup.productName} added. Add more items or save all to inventory.`,
+                    });
+
+                    // Reset single item form
+                    setProductName("");
+                    setQuantity("");
+                    setCostPrice("");
+                    setSellingPrice("");
+                    setSelectedProduct("");
+                    setSelectedCategory("");
+                    setInternationalUnit("");
+                    setLocalUnit("");
+                    setCustomUnit("");
+                    setIsCustomUnit(false);
+                    setSelectedSupplier("");
+                    setBatchNumber("");
+                    setUnitCost("");
+                    setExpiryDate("");
+                    setSupplierNotes("");
+
+                    // Close dialog and reset state
+                    setIsAddToGroupDialogOpen(false);
+                    setCreateNewGroupForSingleItem(false);
+                    setSelectedGroupForSingleItem("");
+                    setNewSingleItemGroupName("");
+                    setNewSingleItemGroupDescription("");
+                    setPendingItemForGroup(null);
+                    setLoading(false);
+                  } catch (error) {
+                    console.error('Error adding to group:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to add item to group",
+                      variant: "destructive",
+                    });
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading || (!createNewGroupForSingleItem && !selectedGroupForSingleItem)}
+              >
+                {loading ? 'Adding...' : 'Add Another Item'}
+              </Button>
+              <Button
+                onClick={async () => {
+                  try {
+                    setLoading(true);
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) throw new Error('Not authenticated');
+                    const userId = user.id;
+
+                    let groupId = selectedGroupForSingleItem;
+
+                    // Create new group if needed
+                    if (createNewGroupForSingleItem) {
+                      if (!newSingleItemGroupName.trim()) {
+                        toast({
+                          title: "Error",
+                          description: "Group name is required",
+                          variant: "destructive",
+                        });
+                        setLoading(false);
+                        return;
+                      }
+
+                      const { data: newGroup, error: groupError } = await supabase
+                        .from('inventory_groups')
+                        .insert({
+                          user_id: userId,
+                          group_name: newSingleItemGroupName.trim(),
+                          description: newSingleItemGroupDescription.trim() || null,
+                        })
+                        .select('id')
+                        .single();
+
+                      if (groupError) {
+                        if (groupError.code === '23505') {
+                          toast({
+                            title: "Error",
+                            description: "A group with this name already exists",
+                            variant: "destructive",
+                          });
+                          setLoading(false);
+                          return;
+                        }
+                        throw groupError;
+                      }
+
+                      groupId = newGroup.id;
+                      await fetchInventoryGroups();
+                    } else if (!groupId) {
+                      toast({
+                        title: "Error",
+                        description: "Please select a group or create a new one",
+                        variant: "destructive",
+                      });
+                      setLoading(false);
+                      return;
+                    }
+
+                    // Save item to group
+                    const { error: itemError } = await supabase
+                      .from('inventory_group_items')
+                      .insert({
+                        group_id: groupId,
+                        product_name: pendingItemForGroup.productName,
+                        quantity: pendingItemForGroup.quantity,
+                        cost_price: pendingItemForGroup.costPrice || null,
+                        selling_price: pendingItemForGroup.sellingPrice || null,
+                        international_unit: pendingItemForGroup.internationalUnit || null,
+                        local_unit: pendingItemForGroup.localUnit || null,
+                        custom_unit: pendingItemForGroup.customUnit || null,
+                        category: pendingItemForGroup.category || null,
+                        supplier_id: pendingItemForGroup.supplierId || null,
+                        batch_number: pendingItemForGroup.batchNumber || null,
+                        expiry_date: pendingItemForGroup.expiryDate || null,
+                        notes: pendingItemForGroup.notes || null,
+                      });
+
+                    if (itemError) throw itemError;
+
+                    // Now add to inventory (same logic as regular submit)
+                    const quantityNum = pendingItemForGroup.quantity;
+                    const unitCostNum = pendingItemForGroup.costPrice;
+                    const totalCost = quantityNum * unitCostNum;
+
+                    // Create or update user_products
+                    const { data: existingProduct } = await supabase
+                      .from('user_products')
+                      .select('*')
+                      .eq('user_id', userId)
+                      .eq('product_name', pendingItemForGroup.productName)
+                      .single();
+
+                    if (existingProduct) {
+                      const updateData: any = {
+                        current_stock: (existingProduct.current_stock || 0) + quantityNum,
+                        updated_at: new Date().toISOString()
+                      };
+
+                      if (pendingItemForGroup.sellingPrice > 0) {
+                        updateData.selling_price = pendingItemForGroup.sellingPrice;
+                      }
+
+                      await supabase
+                        .from('user_products')
+                        .update(updateData)
+                        .eq('id', existingProduct.id);
+                    } else {
+                      const insertData: any = {
+                        user_id: userId,
+                        product_name: pendingItemForGroup.productName,
+                        current_stock: quantityNum
+                      };
+
+                      if (pendingItemForGroup.sellingPrice > 0) {
+                        insertData.selling_price = pendingItemForGroup.sellingPrice;
+                      }
+
+                      await supabase
+                        .from('user_products')
+                        .insert(insertData);
+                    }
+
+                    // Create inventory receipt if supplier info is provided
+                    let receiptId = null;
+                    if (pendingItemForGroup.supplierId) {
+                      const { data: receipt } = await supabase
+                        .from('inventory_receipts')
+                        .insert({
+                          user_id: userId,
+                          supplier_id: pendingItemForGroup.supplierId,
+                          product_name: pendingItemForGroup.productName,
+                          quantity_received: quantityNum,
+                          unit_cost: unitCostNum || null,
+                          total_cost: totalCost || null,
+                          batch_number: pendingItemForGroup.batchNumber || null,
+                          expiry_date: pendingItemForGroup.expiryDate || null,
+                          received_date: new Date().toISOString()
+                        })
+                        .select('id')
+                        .single();
+
+                      receiptId = receipt?.id;
+                    }
+
+                    // Create inventory movement record
+                    await supabase
+                      .from('inventory_movements')
+                      .insert({
+                        user_id: userId,
+                        receipt_id: receiptId,
+                        product_name: pendingItemForGroup.productName,
+                        movement_type: 'received',
+                        quantity: quantityNum,
+                        unit_price: unitCostNum || null,
+                        notes: pendingItemForGroup.notes || null
+                      });
+
+                    await Promise.all([
+                      queryClient.invalidateQueries({ queryKey: inventoryOverviewQueryKey(userId) }),
+                      queryClient.invalidateQueries({ queryKey: homeMetricsQueryKey(userId) })
+                    ]);
+
+                    const groupName = createNewGroupForSingleItem
+                      ? newSingleItemGroupName
+                      : availableGroups.find(g => g.id === groupId)?.group_name;
+
+                    toast({
+                      title: "🎉 Success!",
+                      description: `${pendingItemForGroup.productName} added to inventory and saved to "${groupName}" group!`,
+                    });
+
+                    // Reset form
+                    setProductName("");
+                    setQuantity("");
+                    setCostPrice("");
+                    setSellingPrice("");
+                    setSelectedProduct("");
+                    setSelectedCategory("");
+                    setInternationalUnit("");
+                    setLocalUnit("");
+                    setCustomUnit("");
+                    setIsCustomUnit(false);
+                    setSelectedSupplier("");
+                    setBatchNumber("");
+                    setUnitCost("");
+                    setExpiryDate("");
+                    setSupplierNotes("");
+
+                    // Close dialog and reset state
+                    setIsAddToGroupDialogOpen(false);
+                    setCreateNewGroupForSingleItem(false);
+                    setSelectedGroupForSingleItem("");
+                    setNewSingleItemGroupName("");
+                    setNewSingleItemGroupDescription("");
+                    setPendingItemForGroup(null);
+                    setLoading(false);
+                  } catch (error) {
+                    console.error('Error adding to inventory and group:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to add item to inventory and group",
+                      variant: "destructive",
+                    });
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading || (!createNewGroupForSingleItem && !selectedGroupForSingleItem)}
+              >
+                {loading ? 'Saving...' : 'Add to Inventory'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
