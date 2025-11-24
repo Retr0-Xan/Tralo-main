@@ -323,12 +323,12 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
 
       for (const item of bulkItems) {
         try {
-          // Check if product exists
+          // Check if product exists (case-insensitive)
           const { data: existingProduct } = await supabase
             .from('user_products')
             .select('*')
             .eq('user_id', userId)
-            .eq('product_name', item.productName)
+            .ilike('product_name', item.productName)
             .single();
 
           if (existingProduct) {
@@ -445,12 +445,12 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
       const unitCostNum = unitCost ? parseFloat(unitCost) : (costPrice ? parseFloat(costPrice) : 0);
       const totalCost = quantityNum * unitCostNum;
 
-      // Create or update user_products
+      // Create or update user_products (case-insensitive)
       const { data: existingProduct } = await supabase
         .from('user_products')
         .select('*')
         .eq('user_id', userId)
-        .eq('product_name', finalProductName.trim())
+        .ilike('product_name', finalProductName.trim())
         .single();
 
       if (existingProduct) {
@@ -1394,12 +1394,12 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
                     const unitCostNum = pendingItemForGroup.costPrice;
                     const totalCost = quantityNum * unitCostNum;
 
-                    // Create or update user_products
+                    // Create or update user_products (case-insensitive)
                     const { data: existingProduct } = await supabase
                       .from('user_products')
                       .select('*')
                       .eq('user_id', userId)
-                      .eq('product_name', pendingItemForGroup.productName)
+                      .ilike('product_name', pendingItemForGroup.productName)
                       .single();
 
                     if (existingProduct) {
