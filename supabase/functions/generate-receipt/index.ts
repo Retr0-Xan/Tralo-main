@@ -21,12 +21,12 @@ interface ReceiptRequest {
     phone: string;
   };
   subtotal: number;
-  vat: number;
+  totalTax: number;
   total: number;
   paymentMethod: string;
   paymentStatus: string;
   partialPayment?: number;
-  includeVAT: boolean;
+  applyTaxes: boolean;
   notes?: string;
   date: string;
 }
@@ -121,10 +121,26 @@ const handler = async (req: Request): Promise<Response> => {
                 <span><strong>Subtotal:</strong></span>
                 <span><strong>₵${saleData.subtotal.toFixed(2)}</strong></span>
             </div>
-            ${saleData.includeVAT ? `
+            ${saleData.applyTaxes ? `
             <div class="item-row">
-                <span><strong>VAT (12.5%):</strong></span>
-                <span><strong>₵${saleData.vat.toFixed(2)}</strong></span>
+                <span>VAT (15%):</span>
+                <span>₵${(saleData.totalTax * (0.15 / 0.21)).toFixed(2)}</span>
+            </div>
+            <div class="item-row">
+                <span>NHIL (2.5%):</span>
+                <span>₵${(saleData.totalTax * (0.025 / 0.21)).toFixed(2)}</span>
+            </div>
+            <div class="item-row">
+                <span>GETFund (2.5%):</span>
+                <span>₵${(saleData.totalTax * (0.025 / 0.21)).toFixed(2)}</span>
+            </div>
+            <div class="item-row">
+                <span>COVID-19 Levy (1%):</span>
+                <span>₵${(saleData.totalTax * (0.01 / 0.21)).toFixed(2)}</span>
+            </div>
+            <div class="item-row" style="font-weight: bold; border-top: 1px solid #ccc; margin-top: 5px; padding-top: 5px;">
+                <span>Total Taxes:</span>
+                <span>₵${saleData.totalTax.toFixed(2)}</span>
             </div>
             ` : ''}
         </div>
@@ -136,8 +152,8 @@ const handler = async (req: Request): Promise<Response> => {
 
         <div class="payment-info">
             <strong>Payment Method:</strong> ${saleData.paymentMethod.toUpperCase()}<br>
-            <strong>Status:</strong> ${saleData.paymentStatus === 'credit' ? 'CREDIT SALE' : 
-                saleData.paymentStatus === 'partial_payment' ? `PARTIAL PAYMENT (₵${saleData.partialPayment?.toFixed(2)})` : 'PAID IN FULL'}
+            <strong>Status:</strong> ${saleData.paymentStatus === 'credit' ? 'CREDIT SALE' :
+        saleData.paymentStatus === 'partial_payment' ? `PARTIAL PAYMENT (₵${saleData.partialPayment?.toFixed(2)})` : 'PAID IN FULL'}
             ${saleData.notes ? `<br><strong>Notes:</strong> ${saleData.notes}` : ''}
         </div>
 

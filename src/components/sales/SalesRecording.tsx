@@ -46,10 +46,7 @@ const SalesRecording = () => {
   // Customer details
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [includeVAT, setIncludeVAT] = useState(false);
-  const [includeNHIL, setIncludeNHIL] = useState(false);
-  const [includeGETFund, setIncludeGETFund] = useState(false);
-  const [includeCovid19, setIncludeCovid19] = useState(false);
+  const [applyTaxes, setApplyTaxes] = useState(false);
   const [additionalNotes, setAdditionalNotes] = useState("");
 
   // Payment details
@@ -177,24 +174,10 @@ const SalesRecording = () => {
     return salesItems.reduce((sum, item) => sum + item.total, 0);
   };
 
-  const calculateVAT = () => {
-    return includeVAT ? calculateSubtotal() * 0.15 : 0;
-  };
-
-  const calculateNHIL = () => {
-    return includeNHIL ? calculateSubtotal() * 0.025 : 0;
-  };
-
-  const calculateGETFund = () => {
-    return includeGETFund ? calculateSubtotal() * 0.025 : 0;
-  };
-
-  const calculateCovid19 = () => {
-    return includeCovid19 ? calculateSubtotal() * 0.01 : 0;
-  };
-
   const calculateTotalTaxes = () => {
-    return calculateVAT() + calculateNHIL() + calculateGETFund() + calculateCovid19();
+    if (!applyTaxes) return 0;
+    // Combined tax rate: VAT 15% + NHIL 2.5% + GETFund 2.5% + COVID-19 1% = 21%
+    return calculateSubtotal() * 0.21;
   };
 
   const calculateGrandTotal = () => {
@@ -332,6 +315,14 @@ const SalesRecording = () => {
 
         const saleTimestamp = new Date().toISOString();
 
+        // Calculate taxes for this item (proportional to item's share of subtotal)
+        const itemSubtotalRatio = item.total / calculateSubtotal();
+        const itemTotalTax = applyTaxes ? calculateTotalTaxes() * itemSubtotalRatio : 0;
+        const itemVAT = applyTaxes ? itemTotalTax * (0.15 / 0.21) : 0;
+        const itemNHIL = applyTaxes ? itemTotalTax * (0.025 / 0.21) : 0;
+        const itemGETFund = applyTaxes ? itemTotalTax * (0.025 / 0.21) : 0;
+        const itemCovid19 = applyTaxes ? itemTotalTax * (0.01 / 0.21) : 0;
+
         // Record the purchase
         const { data: purchaseRecord, error: purchaseError } = await supabase
           .from('customer_purchases')
@@ -343,6 +334,11 @@ const SalesRecording = () => {
             quantity: item.quantity,
             payment_method: resolvedPaymentMethod,
             purchase_date: saleTimestamp,
+            vat_amount: itemVAT,
+            nhil_amount: itemNHIL,
+            getfund_amount: itemGETFund,
+            covid19_amount: itemCovid19,
+            total_tax: itemTotalTax,
           })
           .select('id')
           .single();
@@ -402,12 +398,12 @@ const SalesRecording = () => {
             phone: customerPhone || 'N/A'
           },
           subtotal: calculateSubtotal(),
-          vat: calculateVAT(),
+          totalTax: calculateTotalTaxes(),
           total: grandTotal,
           paymentMethod,
           paymentStatus,
           partialPayment: paymentStatus === 'partial_payment' ? partialPaymentAmount : null,
-          includeVAT,
+          applyTaxes,
           notes: additionalNotes,
           date: new Date().toISOString()
         };
@@ -457,13 +453,13 @@ const SalesRecording = () => {
             isFromInventory: item.isFromInventory
           })),
           subtotal: calculateSubtotal(),
-          vat: calculateVAT(),
+          totalTax: calculateTotalTaxes(),
           total: grandTotal,
           customer: { name: customerName, phone: customerPhone },
           paymentMethod,
           paymentStatus,
           partialPayment: paymentStatus === 'partial_payment' ? partialPaymentAmount : null,
-          includeVAT,
+          applyTaxes,
           notes: additionalNotes,
           date: new Date().toISOString()
         };
@@ -509,10 +505,7 @@ const SalesRecording = () => {
       setCurrentStep(1);
       setCustomerName("");
       setCustomerPhone("");
-      setIncludeVAT(false);
-      setIncludeNHIL(false);
-      setIncludeGETFund(false);
-      setIncludeCovid19(false);
+      setApplyTaxes(false);
       setAdditionalNotes("");
       setPaymentMethod('cash');
       setPaymentStatus('paid_in_full');
@@ -857,40 +850,15 @@ const SalesRecording = () => {
         </div>
 
         <div className="space-y-3">
-          <Label className="text-base font-semibold">Taxes (Select if applicable)</Label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="includeVAT"
-                checked={includeVAT}
-                onCheckedChange={(checked) => setIncludeVAT(!!checked)}
-              />
-              <Label htmlFor="includeVAT" className="cursor-pointer">VAT (15%)</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="includeNHIL"
-                checked={includeNHIL}
-                onCheckedChange={(checked) => setIncludeNHIL(!!checked)}
-              />
-              <Label htmlFor="includeNHIL" className="cursor-pointer">NHIL (2.5%)</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="includeGETFund"
-                checked={includeGETFund}
-                onCheckedChange={(checked) => setIncludeGETFund(!!checked)}
-              />
-              <Label htmlFor="includeGETFund" className="cursor-pointer">GETFund (2.5%)</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="includeCovid19"
-                checked={includeCovid19}
-                onCheckedChange={(checked) => setIncludeCovid19(!!checked)}
-              />
-              <Label htmlFor="includeCovid19" className="cursor-pointer">COVID-19 Levy (1%)</Label>
-            </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="applyTaxes"
+              checked={applyTaxes}
+              onCheckedChange={(checked) => setApplyTaxes(!!checked)}
+            />
+            <Label htmlFor="applyTaxes" className="cursor-pointer font-semibold">
+              Apply Taxes (21% - VAT 15%, NHIL 2.5%, GETFund 2.5%, COVID-19 1%)
+            </Label>
           </div>
         </div>
 
@@ -913,33 +881,9 @@ const SalesRecording = () => {
               <span>Subtotal: </span>
               <span>¢{calculateSubtotal().toFixed(2)}</span>
             </div>
-            {includeVAT && (
-              <div className="flex justify-between py-1 text-sm">
-                <span>VAT (15%): </span>
-                <span>¢{calculateVAT().toFixed(2)}</span>
-              </div>
-            )}
-            {includeNHIL && (
-              <div className="flex justify-between py-1 text-sm">
-                <span>NHIL (2.5%): </span>
-                <span>¢{calculateNHIL().toFixed(2)}</span>
-              </div>
-            )}
-            {includeGETFund && (
-              <div className="flex justify-between py-1 text-sm">
-                <span>GETFund (2.5%): </span>
-                <span>¢{calculateGETFund().toFixed(2)}</span>
-              </div>
-            )}
-            {includeCovid19 && (
-              <div className="flex justify-between py-1 text-sm">
-                <span>COVID-19 Levy (1%): </span>
-                <span>¢{calculateCovid19().toFixed(2)}</span>
-              </div>
-            )}
-            {calculateTotalTaxes() > 0 && (
-              <div className="flex justify-between py-1 text-sm border-t mt-1 pt-1">
-                <span>Total Taxes: </span>
+            {applyTaxes && (
+              <div className="flex justify-between py-1 font-semibold">
+                <span>Taxes (21%): </span>
                 <span>¢{calculateTotalTaxes().toFixed(2)}</span>
               </div>
             )}
