@@ -5,6 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Package, Eye, Network, DollarSign, AlertTriangle, TrendingUp, TrendingDown, Trophy, Trash2, Lightbulb, RefreshCw, Loader2, ShoppingCart, Send, FileText, Share2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +61,7 @@ const InventoryDashboard = () => {
   const [lossQuantity, setLossQuantity] = useState("");
   const [lossReason, setLossReason] = useState("");
   const [lossNotes, setLossNotes] = useState("");
+  const [recordAsExpense, setRecordAsExpense] = useState(false);
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
   const { toast } = useToast();
 
@@ -121,9 +124,35 @@ const InventoryDashboard = () => {
             notes: lossNotes || null
           });
 
+        // Record as expense if toggled
+        if (recordAsExpense) {
+          // Get product cost to calculate expense amount
+          const { data: productData } = await supabase
+            .from('user_products')
+            .select('selling_price')
+            .eq('user_id', authUser.id)
+            .eq('product_name', lossProduct)
+            .single();
+
+          const estimatedValue = productData?.selling_price
+            ? Number(productData.selling_price) * lossQty
+            : 0;
+
+          // Record expense
+          await supabase
+            .from('expenses')
+            .insert({
+              user_id: authUser.id,
+              category: 'Loss/Damage',
+              amount: estimatedValue,
+              description: `${lossReason.charAt(0).toUpperCase() + lossReason.slice(1)} - ${lossProduct} (${lossQty} units)${lossNotes ? ': ' + lossNotes : ''}`,
+              expense_date: new Date().toISOString()
+            });
+        }
+
         toast({
           title: "Loss recorded",
-          description: `Recorded loss of ${lossQuantity} ${lossProduct}`,
+          description: `Recorded loss of ${lossQuantity} ${lossProduct}${recordAsExpense ? ' as expense' : ''}`,
         });
 
         // Reset form and refresh data
@@ -131,6 +160,7 @@ const InventoryDashboard = () => {
         setLossQuantity("");
         setLossReason("");
         setLossNotes("");
+        setRecordAsExpense(false);
         if (authUser.id) {
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: inventoryOverviewQueryKey(authUser.id) }),
@@ -443,6 +473,19 @@ const InventoryDashboard = () => {
               value={lossNotes}
               onChange={(e) => setLossNotes(e.target.value)}
             />
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="recordAsExpense"
+                checked={recordAsExpense}
+                onCheckedChange={(checked) => setRecordAsExpense(!!checked)}
+              />
+              <Label
+                htmlFor="recordAsExpense"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                Record this loss as an expense
+              </Label>
+            </div>
             <Button
               onClick={handleRecordLoss}
               disabled={recordingLoss || !lossProduct || !lossQuantity || !lossReason}
