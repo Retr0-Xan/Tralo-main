@@ -132,7 +132,12 @@ const fetchHomeMetrics = async (userId: string): Promise<HomeMetricsResult> => {
         averageCostPerUnit = Number(product.selling_price);
       }
 
-      currentStockValue += Number(product.current_stock ?? 0) * averageCostPerUnit;
+      // Use selling price when available (matches inventory analytics calculation)
+      const unitStockValue = Number(product.selling_price ?? 0) > 0
+        ? Number(product.selling_price)
+        : averageCostPerUnit;
+
+      currentStockValue += Number(product.current_stock ?? 0) * unitStockValue;
     }
   }
 
