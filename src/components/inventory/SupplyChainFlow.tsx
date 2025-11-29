@@ -5,21 +5,28 @@ import { Button } from '@/components/ui/button';
 import { Network, RefreshCw, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface SupplyChainMetrics {
-  product_name: string;
-  total_received: number;
-  total_sold: number;
-  current_stock: number;
-  days_in_inventory: number;
-  turnover_rate: number;
-  supplier_count: number;
-  avg_unit_cost: number;
-  total_investment: number;
-  total_revenue: number;
-  profit_margin: number;
-  status: string;
-  status_color: string;
+  // Stage 1: From Suppliers
+  unitsReceived: number;
+  totalInvested: number;
+  supplierCount: number;
+
+  // Stage 2: Inventory
+  unitsRemaining: number;
+  avgInventoryAge: number;
+
+  // Stage 3: Sold to Customers
+  unitsSold: number;
+  revenue: number;
+  avgSellingPrice: number;
+
+  // Product Insights
+  turnoverRate: number;
+  profitMargin: number;
+  avgUnitCost: number;
+  breakEvenPoint: number;
 }
 
 interface Product {
@@ -27,6 +34,7 @@ interface Product {
 }
 
 export default function SupplyChainFlow() {
+  const { user } = useAuth();
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [products, setProducts] = useState<Product[]>([]);
   const [metrics, setMetrics] = useState<Record<string, SupplyChainMetrics>>({});
@@ -35,34 +43,25 @@ export default function SupplyChainFlow() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchProducts();
-    fetchSupplyChainData();
-  }, []);
+    if (user?.id) {
+      fetchProducts();
+      fetchSupplyChainData();
+    }
+  }, [user?.id]);
 
   const fetchProducts = async () => {
-    try {
-      const { data: receiptsData } = await supabase
-        .from('inventory_receipts')
-        .select('product_name')
-        .order('product_name');
+    if (!user?.id) return;
 
+    try {
       const { data: productsData } = await supabase
         .from('user_products')
         .select('product_name')
+        .eq('user_id', user.id)
         .order('product_name');
 
-      // Combine and deduplicate products
-      const allProducts = [
-        ...(receiptsData?.map(r => ({ product_name: r.product_name })) || []),
-        ...(productsData?.map(p => ({ product_name: p.product_name })) || [])
-      ];
-
-      const uniqueProducts = allProducts.filter((product, index, self) => 
-        index === self.findIndex(p => p.product_name === product.product_name)
-      );
-
+      const uniqueProducts = productsData?.map(p => ({ product_name: p.product_name })) || [];
       setProducts(uniqueProducts);
-      
+
       if (uniqueProducts.length > 0 && !selectedProduct) {
         setSelectedProduct(uniqueProducts[0].product_name);
       }
@@ -72,20 +71,111 @@ export default function SupplyChainFlow() {
   };
 
   const fetchSupplyChainData = async () => {
+    if (!user?.id) return;
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // Get business profile
+      const { data: businessProfile } = await supabase
+        .from('business_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
 
-      const { data } = await supabase.functions.invoke('supply-chain-analyzer', {
-        body: { user_id: user.id }
-      });
-
-      if (data?.metrics) {
-        setMetrics(data.metrics);
-      } else {
-        // Show empty state with sample data structure
+      if (!businessProfile) {
         setMetrics({});
+        setLoading(false);
+        return;
       }
+
+      // Get all products
+      const { data: allProducts } = await supabase
+        .from('user_products')
+        .select('product_name, current_stock, selling_price')
+        .eq('user_id', user.id);
+
+      if (!allProducts || allProducts.length === 0) {
+        setMetrics({});
+        setLoading(false);
+        return;
+      }
+
+      const metricsData: Record<string, SupplyChainMetrics> = {};
+
+      // Calculate metrics for each product
+      for (const product of allProducts) {
+        const productName = product.product_name;
+        const productNameLower = productName.toLowerCase();
+
+        // Stage 1: From Suppliers - Get receipts data
+        const { data: receipts } = await supabase
+          .from('inventory_receipts')
+          .select('quantity_received, total_cost, unit_cost, received_date, supplier_id')
+          .eq('user_id', user.id)
+          .ilike('product_name', productName);
+
+        const unitsReceived = receipts?.reduce((sum, r) => sum + Number(r.quantity_received || 0), 0) || 0;
+        const totalInvested = receipts?.reduce((sum, r) => {
+          const cost = r.total_cost || (Number(r.unit_cost || 0) * Number(r.quantity_received || 0));
+          return sum + Number(cost);
+        }, 0) || 0;
+        const uniqueSuppliers = new Set(receipts?.map(r => r.supplier_id).filter(Boolean));
+        const supplierCount = uniqueSuppliers.size;
+
+        // Calculate average inventory age (days since first receipt)
+        let avgInventoryAge = 0;
+        if (receipts && receipts.length > 0) {
+          const sortedReceipts = receipts
+            .filter(r => r.received_date)
+            .sort((a, b) => new Date(a.received_date!).getTime() - new Date(b.received_date!).getTime());
+
+          if (sortedReceipts.length > 0) {
+            const oldestDate = new Date(sortedReceipts[0].received_date!);
+            const now = new Date();
+            avgInventoryAge = Math.floor((now.getTime() - oldestDate.getTime()) / (1000 * 60 * 60 * 24));
+          }
+        }
+
+        // Stage 3: Sold to Customers - Get sales data
+        const { data: sales } = await supabase
+          .from('customer_purchases')
+          .select('quantity, amount')
+          .eq('business_id', businessProfile.id)
+          .ilike('product_name', productName);
+
+        const unitsSold = sales?.reduce((sum, s) => sum + Number(s.quantity || 0), 0) || 0;
+        const revenue = sales?.reduce((sum, s) => sum + Number(s.amount || 0), 0) || 0;
+        const avgSellingPrice = unitsSold > 0 ? revenue / unitsSold : Number(product.selling_price || 0);
+
+        // Stage 2: Inventory
+        const unitsRemaining = Number(product.current_stock || 0);
+
+        // Product Insights
+        const avgUnitCost = unitsReceived > 0 ? totalInvested / unitsReceived : 0;
+        const turnoverRate = unitsReceived > 0 ? (unitsSold / unitsReceived) * 100 : 0;
+
+        const costOfGoodsSold = avgUnitCost * unitsSold;
+        const profitMargin = revenue > 0 ? ((revenue - costOfGoodsSold) / revenue) * 100 : 0;
+
+        // Break-even point: units needed to recover total investment
+        const breakEvenPoint = avgSellingPrice > 0 ? Math.ceil(totalInvested / avgSellingPrice) : 0;
+
+        metricsData[productName] = {
+          unitsReceived,
+          totalInvested,
+          supplierCount,
+          unitsRemaining,
+          avgInventoryAge,
+          unitsSold,
+          revenue,
+          avgSellingPrice,
+          turnoverRate,
+          profitMargin,
+          avgUnitCost,
+          breakEvenPoint,
+        };
+      }
+
+      setMetrics(metricsData);
     } catch (error) {
       console.error('Error fetching supply chain data:', error);
       toast({
@@ -99,59 +189,15 @@ export default function SupplyChainFlow() {
 
   const analyzeSupplyChain = async () => {
     setAnalyzing(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      toast({
-        title: "Analyzing supply chain...",
-        description: "Processing inventory flow data",
-      });
-
-      const { data } = await supabase.functions.invoke('supply-chain-analyzer', {
-        body: { user_id: user.id }
-      });
-
-      if (data?.metrics) {
-        setMetrics(data.metrics);
-        toast({
-          title: "Analysis complete",
-          description: `Analyzed ${Object.keys(data.metrics).length} products with supply chain data`,
-        });
-      } else {
-        toast({
-          title: "No data found",
-          description: "Start recording inventory receipts to analyze supply chain flow",
-        });
-      }
-    } catch (error) {
-      console.error('Error analyzing supply chain:', error);
-      toast({
-        title: "Error",
-        description: "Failed to analyze supply chain data",
-        variant: "destructive",
-      });
-    } finally {
-      setAnalyzing(false);
-    }
+    await fetchSupplyChainData();
+    setAnalyzing(false);
+    toast({
+      title: "Analysis complete",
+      description: `Analyzed ${Object.keys(metrics).length} products`,
+    });
   };
 
   const currentMetrics = selectedProduct && metrics[selectedProduct] ? metrics[selectedProduct] : null;
-
-  const getStatusColorClasses = (color: string) => {
-    switch (color) {
-      case 'green':
-        return 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800 text-green-800 dark:text-green-200';
-      case 'orange':
-        return 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800 text-orange-800 dark:text-orange-200';
-      case 'red':
-        return 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200';
-      case 'yellow':
-        return 'bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-200';
-      default:
-        return 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200';
-    }
-  };
 
   if (loading) {
     return (
@@ -218,9 +264,9 @@ export default function SupplyChainFlow() {
               <Network className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No supply chain data available yet.</p>
               <p className="text-sm">Start recording inventory receipts from suppliers to track supply chain flow.</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="mt-4"
                 onClick={analyzeSupplyChain}
               >
@@ -229,80 +275,105 @@ export default function SupplyChainFlow() {
             </div>
           ) : currentMetrics ? (
             <>
-              {/* Supply Chain Flow Visualization */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 relative">
-                  <div className="text-sm font-medium text-green-800 dark:text-green-200 flex items-center gap-2">
-                    📦 From Suppliers
+              {/* STAGE 1 — From Suppliers */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase">Stage 1 — From Suppliers</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+                    <div className="text-xs text-green-600 dark:text-green-400 mb-1">Units Received</div>
+                    <div className="text-2xl font-bold text-green-800 dark:text-green-200">
+                      {currentMetrics.unitsReceived.toLocaleString()}
+                    </div>
                   </div>
-                  <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                    {currentMetrics.total_received} units received
+                  <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+                    <div className="text-xs text-green-600 dark:text-green-400 mb-1">Total Invested</div>
+                    <div className="text-2xl font-bold text-green-800 dark:text-green-200">
+                      ¢{currentMetrics.totalInvested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
                   </div>
-                  <div className="text-xs text-green-600 dark:text-green-400">
-                    ¢{currentMetrics.total_investment.toFixed(2)} invested
-                  </div>
-                  <div className="absolute -right-3 top-1/2 transform -translate-y-1/2 text-2xl">
-                    →
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 relative">
-                  <div className="text-sm font-medium text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                    📊 In Inventory
-                  </div>
-                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    {currentMetrics.current_stock} units remaining
-                  </div>
-                  <div className="text-xs text-blue-600 dark:text-blue-400">
-                    {currentMetrics.days_in_inventory} days average age
-                  </div>
-                  <div className="absolute -right-3 top-1/2 transform -translate-y-1/2 text-2xl">
-                    →
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800">
-                  <div className="text-sm font-medium text-purple-800 dark:text-purple-200 flex items-center gap-2">
-                    💰 Sold to Customers
-                  </div>
-                  <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                    {currentMetrics.total_sold} units sold
-                  </div>
-                  <div className="text-xs text-purple-600 dark:text-purple-400">
-                    ¢{currentMetrics.total_revenue.toFixed(2)} revenue
+                  <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+                    <div className="text-xs text-green-600 dark:text-green-400 mb-1"># of Suppliers</div>
+                    <div className="text-2xl font-bold text-green-800 dark:text-green-200">
+                      {currentMetrics.supplierCount}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Status */}
-              <div className={`p-3 rounded-lg border ${getStatusColorClasses(currentMetrics.status_color)}`}>
-                <div className="text-sm font-medium">
-                  ⚡ Status: {currentMetrics.status}
+              {/* STAGE 2 — Inventory */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase">Stage 2 — Inventory</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+                    <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">Units Remaining</div>
+                    <div className="text-2xl font-bold text-blue-800 dark:text-blue-200">
+                      {currentMetrics.unitsRemaining.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+                    <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">Avg Inventory Age</div>
+                    <div className="text-2xl font-bold text-blue-800 dark:text-blue-200">
+                      {currentMetrics.avgInventoryAge} days
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Supply Chain Metrics */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-3 rounded-lg bg-muted/50 border border-border">
-                  <div className="text-xs text-muted-foreground">Turnover Rate</div>
-                  <div className="text-sm font-semibold">
-                    {(currentMetrics.turnover_rate * 100).toFixed(0)}%
+              {/* STAGE 3 — Sold to Customers */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase">Stage 3 — Sold to Customers</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800">
+                    <div className="text-xs text-purple-600 dark:text-purple-400 mb-1">Units Sold</div>
+                    <div className="text-2xl font-bold text-purple-800 dark:text-purple-200">
+                      {currentMetrics.unitsSold.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800">
+                    <div className="text-xs text-purple-600 dark:text-purple-400 mb-1">Revenue</div>
+                    <div className="text-2xl font-bold text-purple-800 dark:text-purple-200">
+                      ¢{currentMetrics.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800">
+                    <div className="text-xs text-purple-600 dark:text-purple-400 mb-1">Avg Selling Price</div>
+                    <div className="text-2xl font-bold text-purple-800 dark:text-purple-200">
+                      ¢{currentMetrics.avgSellingPrice.toFixed(2)}
+                    </div>
                   </div>
                 </div>
-                <div className="p-3 rounded-lg bg-muted/50 border border-border">
-                  <div className="text-xs text-muted-foreground">Profit Margin</div>
-                  <div className="text-sm font-semibold">
-                    {currentMetrics.profit_margin.toFixed(1)}%
+              </div>
+
+              {/* PRODUCT INSIGHTS */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase">Product Insights</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                    <div className="text-xs text-muted-foreground mb-1">Turnover Rate</div>
+                    <div className="text-lg font-semibold">
+                      {currentMetrics.turnoverRate.toFixed(1)}%
+                    </div>
                   </div>
-                </div>
-                <div className="p-3 rounded-lg bg-muted/50 border border-border">
-                  <div className="text-xs text-muted-foreground">Suppliers</div>
-                  <div className="text-sm font-semibold">
-                    {currentMetrics.supplier_count} suppliers
+                  <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                    <div className="text-xs text-muted-foreground mb-1">Profit Margin</div>
+                    <div className="text-lg font-semibold">
+                      {currentMetrics.profitMargin.toFixed(1)}%
+                    </div>
                   </div>
-                </div>
-                <div className="p-3 rounded-lg bg-muted/50 border border-border">
-                  <div className="text-xs text-muted-foreground">Avg. Unit Cost</div>
-                  <div className="text-sm font-semibold">
-                    ¢{currentMetrics.avg_unit_cost.toFixed(2)}
+                  <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                    <div className="text-xs text-muted-foreground mb-1">Avg Unit Cost</div>
+                    <div className="text-lg font-semibold">
+                      ¢{currentMetrics.avgUnitCost.toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                    <div className="text-xs text-muted-foreground mb-1">Break-even Point</div>
+                    <div className="text-lg font-semibold">
+                      {currentMetrics.breakEvenPoint} units
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-1 italic">
+                      Units to sell to recover your investment
+                    </div>
                   </div>
                 </div>
               </div>
