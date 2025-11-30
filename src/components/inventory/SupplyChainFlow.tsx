@@ -24,12 +24,16 @@ interface SupplyChainMetrics {
 
   // Product Insights
   turnoverRate: number;
+  turnoverTimes: number;
   profitMargin: number;
   avgUnitCost: number;
   breakEvenPoint: number;
-}
 
-interface Product {
+  // Status
+  status: string;
+  statusColor: string;
+  statusEmoji: string;
+}interface Product {
   product_name: string;
 }
 
@@ -135,15 +139,36 @@ export default function SupplyChainFlow() {
           }
         }
 
-        // Stage 3: Sold to Customers - Get sales data
+        // Stage 3: Sold to Customers - Get comprehensive sales data from sales_analytics view
+        // This includes all sales with reversals properly handled
         const { data: sales } = await supabase
-          .from('customer_purchases')
-          .select('quantity, amount')
-          .eq('business_id', businessProfile.id)
+          .from('sales_analytics')
+          .select('effective_quantity, effective_amount')
+          .eq('user_id', user.id)
+          .ilike('product_name', productName)
+          .eq('is_reversed', false);
+
+        // Also check inventory_movements for any sales recorded there
+        const { data: movements } = await supabase
+          .from('inventory_movements')
+          .select('quantity, unit_price')
+          .eq('user_id', user.id)
+          .eq('movement_type', 'sold')
           .ilike('product_name', productName);
 
-        const unitsSold = sales?.reduce((sum, s) => sum + Number(s.quantity || 0), 0) || 0;
-        const revenue = sales?.reduce((sum, s) => sum + Number(s.amount || 0), 0) || 0;
+        // Combine sales from both sources
+        const unitsSoldFromSales = sales?.reduce((sum, s) => sum + Number(s.effective_quantity || 0), 0) || 0;
+        const revenueFromSales = sales?.reduce((sum, s) => sum + Number(s.effective_amount || 0), 0) || 0;
+
+        const unitsSoldFromMovements = movements?.reduce((sum, m) => sum + Math.abs(Number(m.quantity || 0)), 0) || 0;
+        const revenueFromMovements = movements?.reduce((sum, m) => {
+          const qty = Math.abs(Number(m.quantity || 0));
+          const price = Number(m.unit_price || 0);
+          return sum + (qty * price);
+        }, 0) || 0;
+
+        const unitsSold = unitsSoldFromSales + unitsSoldFromMovements;
+        const revenue = revenueFromSales + revenueFromMovements;
         const avgSellingPrice = unitsSold > 0 ? revenue / unitsSold : Number(product.selling_price || 0);
 
         // Stage 2: Inventory
@@ -151,13 +176,45 @@ export default function SupplyChainFlow() {
 
         // Product Insights
         const avgUnitCost = unitsReceived > 0 ? totalInvested / unitsReceived : 0;
-        const turnoverRate = unitsReceived > 0 ? (unitsSold / unitsReceived) * 100 : 0;
+        const turnoverTimes = unitsReceived > 0 ? unitsSold / unitsReceived : 0;
+        const turnoverRate = turnoverTimes * 100;
 
         const costOfGoodsSold = avgUnitCost * unitsSold;
         const profitMargin = revenue > 0 ? ((revenue - costOfGoodsSold) / revenue) * 100 : 0;
 
         // Break-even point: units needed to recover total investment
         const breakEvenPoint = avgSellingPrice > 0 ? Math.ceil(totalInvested / avgSellingPrice) : 0;
+
+        // Determine status based on stock levels and turnover
+        let status = '';
+        let statusColor = '';
+        let statusEmoji = '';
+
+        if (unitsRemaining === 0) {
+          status = 'Out of Stock';
+          statusColor = 'red';
+          statusEmoji = '🔴';
+        } else if (unitsRemaining < 5) {
+          status = 'Low Stock';
+          statusColor = 'orange';
+          statusEmoji = '⚠️';
+        } else if (turnoverTimes >= 1.5) {
+          status = 'Fast-moving item';
+          statusColor = 'green';
+          statusEmoji = '🔥';
+        } else if (turnoverTimes >= 0.5) {
+          status = 'Normal movement';
+          statusColor = 'blue';
+          statusEmoji = '✅';
+        } else if (turnoverTimes > 0) {
+          status = 'Slow-moving item';
+          statusColor = 'yellow';
+          statusEmoji = '🐌';
+        } else {
+          status = 'No sales yet';
+          statusColor = 'gray';
+          statusEmoji = '⏳';
+        }
 
         metricsData[productName] = {
           unitsReceived,
@@ -169,9 +226,13 @@ export default function SupplyChainFlow() {
           revenue,
           avgSellingPrice,
           turnoverRate,
+          turnoverTimes,
           profitMargin,
           avgUnitCost,
           breakEvenPoint,
+          status,
+          statusColor,
+          statusEmoji,
         };
       }
 
@@ -344,14 +405,33 @@ export default function SupplyChainFlow() {
                 </div>
               </div>
 
+              {/* STATUS */}
+              <div className={`p-4 rounded-lg border-2 ${currentMetrics.statusColor === 'green' ? 'bg-green-50 dark:bg-green-950 border-green-500 dark:border-green-600' :
+                  currentMetrics.statusColor === 'orange' ? 'bg-orange-50 dark:bg-orange-950 border-orange-500 dark:border-orange-600' :
+                    currentMetrics.statusColor === 'red' ? 'bg-red-50 dark:bg-red-950 border-red-500 dark:border-red-600' :
+                      currentMetrics.statusColor === 'yellow' ? 'bg-yellow-50 dark:bg-yellow-950 border-yellow-500 dark:border-yellow-600' :
+                        currentMetrics.statusColor === 'blue' ? 'bg-blue-50 dark:bg-blue-950 border-blue-500 dark:border-blue-600' :
+                          'bg-gray-50 dark:bg-gray-950 border-gray-500 dark:border-gray-600'
+                }`}>
+                <div className="text-lg font-bold">
+                  {currentMetrics.statusEmoji} Status: {currentMetrics.status}
+                </div>
+              </div>
+
               {/* PRODUCT INSIGHTS */}
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase">Product Insights</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="p-4 rounded-lg bg-muted/50 border border-border">
-                    <div className="text-xs text-muted-foreground mb-1">Turnover Rate</div>
+                    <div className="text-xs text-muted-foreground mb-1">Stock Turnover</div>
                     <div className="text-lg font-semibold">
-                      {currentMetrics.turnoverRate.toFixed(1)}%
+                      {currentMetrics.turnoverTimes.toFixed(2)}×
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-1">
+                      (You sold this item {currentMetrics.turnoverTimes.toFixed(2)} times)
+                    </div>
+                    <div className="text-xs font-medium mt-2">
+                      {currentMetrics.statusEmoji} {currentMetrics.status}
                     </div>
                   </div>
                   <div className="p-4 rounded-lg bg-muted/50 border border-border">
