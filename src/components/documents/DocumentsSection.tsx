@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FileText, Receipt, FileSpreadsheet, Truck, Plus, Download, Search, Filter, Eye, Undo2 } from "lucide-react";
+import { FileText, Receipt, FileSpreadsheet, Truck, Plus, Download, Search, Filter, Eye, Undo2, Clock, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import ExternalReceiptsManager from "./ExternalReceiptsManager";
 import ProformaInvoiceManager from "./ProformaInvoiceManager";
 import BusinessNotes from "./BusinessNotes";
 import ReversalReceiptsHistory from "./ReversalReceiptsHistory";
+import PastSalesRecording from "./PastSalesRecording";
+import BulkSalesUpload from "./BulkSalesUpload";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -633,6 +635,22 @@ const DocumentsSection = () => {
     );
   }
 
+  if (activeView === "past-sales") {
+    return (
+      <PastSalesRecording
+        onBack={() => setActiveView("overview")}
+      />
+    );
+  }
+
+  if (activeView === "bulk-upload") {
+    return (
+      <BulkSalesUpload
+        onBack={() => setActiveView("overview")}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Document Creation Section */}
@@ -724,6 +742,61 @@ const DocumentsSection = () => {
               <Download className="w-4 h-4" />
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Sales Data Management Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Sales Data Management
+          </CardTitle>
+          <CardDescription>
+            Record past sales and import historical data
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button
+              variant="outline"
+              className="h-auto p-4 flex items-center justify-between"
+              onClick={() => setActiveView("past-sales")}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-amber-500 text-white">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <div className="font-medium">Record Past Sales</div>
+                  <div className="text-sm text-muted-foreground">
+                    Add sales from previous dates
+                  </div>
+                </div>
+              </div>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="h-auto p-4 flex items-center justify-between"
+              onClick={() => setActiveView("bulk-upload")}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-purple-500 text-white">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <div className="font-medium">Bulk Upload (CSV)</div>
+                  <div className="text-sm text-muted-foreground">
+                    Import multiple past sales at once
+                  </div>
+                </div>
+              </div>
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            ⚠️ Past sales will be timestamped with both the sale date and the recording date for accurate tracking.
+          </p>
         </CardContent>
       </Card>
 
