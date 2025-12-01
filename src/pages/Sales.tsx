@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Receipt, BarChart3, FileText, DollarSign, Users, Layers, LineChart, Clock, CalendarClock } from "lucide-react";
+import { Receipt, BarChart3, FileText, Users, Layers, LineChart, Clock, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -7,8 +7,6 @@ import { useSearchParams } from "react-router-dom";
 import SalesRecording from "@/components/sales/SalesRecording";
 import SalesDashboard from "@/components/sales/SalesDashboard";
 import SalesSummary from "@/components/sales/SalesSummary";
-import ExpenseRecording from "@/components/expenses/ExpenseRecording";
-import ExpenseHistory from "@/components/expenses/ExpenseHistory";
 import CustomerTrackingDialog from "@/components/sales/CustomerTrackingDialog";
 import SaleReversalDialog from "@/components/sales/SaleReversalDialog";
 import ClientValueRatioDisplay from "@/components/sales/ClientValueRatioDisplay";
@@ -17,16 +15,13 @@ import PastSalesRecording from "@/components/documents/PastSalesRecording";
 
 
 const Sales = () => {
-  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "summary" | "expenses" | "customers" | "history" | "past-sales">("recording");
-  const [expenseSubTab, setExpenseSubTab] = useState<"recording" | "history">("recording");
+  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "summary" | "customers" | "history" | "past-sales">("recording");
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'summary') {
       setActiveTab('summary');
-    } else if (tab === 'expenses') {
-      setActiveTab('expenses');
     } else if (tab === 'customers') {
       setActiveTab('customers');
     }
@@ -37,12 +32,12 @@ const Sales = () => {
       <PageHeader
         icon={Layers}
         title="Sales & Revenue Management"
-        description="Capture transactions, reconcile expenses, and analyse customer health."
+        description="Capture transactions, track customer relationships, and analyze sales performance."
         actions={<SaleReversalDialog />}
       />
 
       <Card className="rounded-2xl border border-border/70">
-        <div className="grid gap-2 border-b border-border/60 bg-muted/30 p-2 md:grid-cols-3 lg:grid-cols-7">
+        <div className="grid gap-2 border-b border-border/60 bg-muted/30 p-2 md:grid-cols-3 lg:grid-cols-6">
           <Button
             size="sm"
             variant={activeTab === "recording" ? "default" : "ghost"}
@@ -60,15 +55,6 @@ const Sales = () => {
           >
             <CalendarClock className="mr-2 h-4 w-4" />
             Past Sale
-          </Button>
-          <Button
-            size="sm"
-            variant={activeTab === "expenses" ? "default" : "ghost"}
-            onClick={() => setActiveTab("expenses")}
-            className="rounded-xl px-4 py-2"
-          >
-            <DollarSign className="mr-2 h-4 w-4" />
-            Record Expense
           </Button>
           <Button
             size="sm"
@@ -134,39 +120,6 @@ const Sales = () => {
                 </div>
               </div>
               <PastSalesRecording />
-            </div>
-          )}
-          {activeTab === "expenses" && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h2 className="text-2xl font-semibold text-foreground">Business Expenses</h2>
-                <p className="text-sm text-muted-foreground">Track and approve cost centres for accurate profitability.</p>
-              </div>
-
-              {/* Expense Sub-tabs */}
-              <div className="flex gap-2 border-b border-border pb-2">
-                <Button
-                  size="sm"
-                  variant={expenseSubTab === "recording" ? "default" : "ghost"}
-                  onClick={() => setExpenseSubTab("recording")}
-                  className="rounded-lg"
-                >
-                  <DollarSign className="mr-2 h-4 w-4" />
-                  Record Expense
-                </Button>
-                <Button
-                  size="sm"
-                  variant={expenseSubTab === "history" ? "default" : "ghost"}
-                  onClick={() => setExpenseSubTab("history")}
-                  className="rounded-lg"
-                >
-                  <Clock className="mr-2 h-4 w-4" />
-                  View History
-                </Button>
-              </div>
-
-              {expenseSubTab === "recording" && <ExpenseRecording onExpenseRecorded={() => { }} />}
-              {expenseSubTab === "history" && <ExpenseHistory />}
             </div>
           )}
           {activeTab === "dashboard" && <SalesDashboard />}

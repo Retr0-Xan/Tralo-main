@@ -109,7 +109,7 @@ const Index = () => {
                 label="Record Expense"
                 icon={Receipt}
                 variant="secondary"
-                onClick={() => navigate("/sales?tab=expenses")}
+                onClick={() => navigate("/expenses")}
               />
               <ActionButton
                 label="Business Reminders"

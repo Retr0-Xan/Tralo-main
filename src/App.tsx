@@ -17,6 +17,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Inventory from "./pages/Inventory";
 import Sales from "./pages/Sales";
+import Expenses from "./pages/Expenses";
 import TradeIndex from "./pages/TradeIndex";
 import Documents from "./pages/Documents";
 import Profile from "./pages/Profile";
@@ -104,6 +105,7 @@ const App = () => (
                 <Route path="/" element={<Index />} />
                 <Route path="/inventory" element={<Inventory />} />
                 <Route path="/sales" element={<Sales />} />
+                <Route path="/expenses" element={<Expenses />} />
                 <Route path="/trade-index" element={<TradeIndex />} />
                 <Route path="/documents" element={<Documents />} />
                 <Route path="/profile" element={<Profile />} />
