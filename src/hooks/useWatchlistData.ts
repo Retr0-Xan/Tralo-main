@@ -114,7 +114,7 @@ export const useWatchlistData = () => {
   }, [user]);
 
   const addToWatchlist = async (productName: string, targetPrice: number) => {
-    const product = availableProducts.find(p => p.name === productName);
+    const product = availableProducts.find(p => p.name.toLowerCase() === productName.toLowerCase());
     if (!product || !user) return;
 
     const newItem: WatchlistItem = {

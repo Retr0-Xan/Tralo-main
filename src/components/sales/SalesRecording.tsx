@@ -120,7 +120,7 @@ const SalesRecording = () => {
     let stockAvailable: number | undefined;
 
     if (!isCustomProduct) {
-      const inventoryItem = inventoryProducts.find(p => p.product_name === selectedProduct);
+      const inventoryItem = inventoryProducts.find(p => p.product_name.toLowerCase() === selectedProduct.toLowerCase());
       stockAvailable = inventoryItem?.current_stock;
 
       if (inventoryItem && quantityNum > inventoryItem.current_stock) {
@@ -259,7 +259,7 @@ const SalesRecording = () => {
             .from('customers')
             .select('id, total_purchases, name, phone_number')
             .eq('user_id', user!.id)
-            .eq('name', customerName)
+            .ilike('name', customerName)
             .single();
           existingCustomer = data;
         }
@@ -290,7 +290,7 @@ const SalesRecording = () => {
           };
 
           // Update name if provided and different
-          if (customerName && customerName !== existingCustomer.name) {
+          if (customerName && customerName.toLowerCase() !== (existingCustomer.name || '').toLowerCase()) {
             updateData.name = customerName;
           }
 
@@ -377,7 +377,7 @@ const SalesRecording = () => {
         if (item.isFromInventory) {
           setInventoryProducts((prev) =>
             prev.map((product) =>
-              product.product_name === item.productName
+              product.product_name.toLowerCase() === item.productName.toLowerCase()
                 ? { ...product, current_stock: Math.max(0, Number(product.current_stock ?? 0) - item.quantity) }
                 : product
             )
@@ -536,15 +536,15 @@ const SalesRecording = () => {
     }
   };
 
-  const handleProductSelection = async (value: string) => {
+  const handleProductSelect = (value: string) => {
     if (value === "custom") {
       setIsCustomProduct(true);
       setSelectedProduct("");
-      setUnitPrice(0);
+      setUnitPrice("");
     } else {
       setIsCustomProduct(false);
       setSelectedProduct(value);
-      const inventoryItem = inventoryProducts.find(p => p.product_name === value);
+      const inventoryItem = inventoryProducts.find(p => p.product_name.toLowerCase() === value.toLowerCase());
       if (inventoryItem) {
         setUnitPrice(Number(inventoryItem.selling_price ?? 0));
       }
@@ -606,7 +606,7 @@ const SalesRecording = () => {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="product">Product</Label>
-                <Select value={isCustomProduct ? "custom" : selectedProduct} onValueChange={handleProductSelection}>
+                <Select value={isCustomProduct ? "custom" : selectedProduct} onValueChange={handleProductSelect}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select from stock or choose custom" />
                   </SelectTrigger>

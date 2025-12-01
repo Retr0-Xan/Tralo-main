@@ -131,7 +131,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
 
         // If selecting a product from stock, auto-populate price
         if (field === 'description' && typeof value === 'string') {
-          const stockItem = stockItems.find(stock => stock.product_name === value);
+          const stockItem = stockItems.find(stock => stock.product_name.toLowerCase() === value.toLowerCase());
           if (stockItem) {
             updatedItem.isFromStock = true;
             updatedItem.productId = stockItem.id;
@@ -332,7 +332,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
                           <div className="absolute -bottom-5 left-0">
                             <span className="text-xs text-green-600">
                               ✓ From stock
-                              {stockItems.find(s => s.product_name === item.description)?.current_stock === 0 &&
+                              {stockItems.find(s => s.product_name.toLowerCase() === item.description.toLowerCase())?.current_stock === 0 &&
                                 " (Out of stock)"
                               }
                             </span>

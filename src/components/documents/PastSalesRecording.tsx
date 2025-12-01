@@ -75,7 +75,7 @@ const PastSalesRecording = () => {
         } else {
             setIsCustomProduct(false);
             setProductName(value);
-            const product = inventoryProducts.find(p => p.product_name === value);
+            const product = inventoryProducts.find(p => p.product_name.toLowerCase() === value.toLowerCase());
             if (product) {
                 setUnitPrice(product.selling_price);
             }
@@ -159,7 +159,7 @@ const PastSalesRecording = () => {
             if (purchaseError) throw purchaseError;
 
             // If product is from inventory, update stock
-            const product = inventoryProducts.find(p => p.product_name === finalProductName);
+            const product = inventoryProducts.find(p => p.product_name.toLowerCase() === finalProductName.toLowerCase());
             if (product) {
                 const { error: updateError } = await supabase
                     .from('user_products')
