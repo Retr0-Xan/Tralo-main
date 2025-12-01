@@ -8,6 +8,7 @@ import SalesRecording from "@/components/sales/SalesRecording";
 import SalesDashboard from "@/components/sales/SalesDashboard";
 import SalesSummary from "@/components/sales/SalesSummary";
 import ExpenseRecording from "@/components/expenses/ExpenseRecording";
+import ExpenseHistory from "@/components/expenses/ExpenseHistory";
 import CustomerTrackingDialog from "@/components/sales/CustomerTrackingDialog";
 import SaleReversalDialog from "@/components/sales/SaleReversalDialog";
 import ClientValueRatioDisplay from "@/components/sales/ClientValueRatioDisplay";
@@ -17,6 +18,7 @@ import PastSalesRecording from "@/components/documents/PastSalesRecording";
 
 const Sales = () => {
   const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "summary" | "expenses" | "customers" | "history" | "past-sales">("recording");
+  const [expenseSubTab, setExpenseSubTab] = useState<"recording" | "history">("recording");
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
@@ -140,7 +142,31 @@ const Sales = () => {
                 <h2 className="text-2xl font-semibold text-foreground">Business Expenses</h2>
                 <p className="text-sm text-muted-foreground">Track and approve cost centres for accurate profitability.</p>
               </div>
-              <ExpenseRecording onExpenseRecorded={() => { }} />
+
+              {/* Expense Sub-tabs */}
+              <div className="flex gap-2 border-b border-border pb-2">
+                <Button
+                  size="sm"
+                  variant={expenseSubTab === "recording" ? "default" : "ghost"}
+                  onClick={() => setExpenseSubTab("recording")}
+                  className="rounded-lg"
+                >
+                  <DollarSign className="mr-2 h-4 w-4" />
+                  Record Expense
+                </Button>
+                <Button
+                  size="sm"
+                  variant={expenseSubTab === "history" ? "default" : "ghost"}
+                  onClick={() => setExpenseSubTab("history")}
+                  className="rounded-lg"
+                >
+                  <Clock className="mr-2 h-4 w-4" />
+                  View History
+                </Button>
+              </div>
+
+              {expenseSubTab === "recording" && <ExpenseRecording onExpenseRecorded={() => { }} />}
+              {expenseSubTab === "history" && <ExpenseHistory />}
             </div>
           )}
           {activeTab === "dashboard" && <SalesDashboard />}
