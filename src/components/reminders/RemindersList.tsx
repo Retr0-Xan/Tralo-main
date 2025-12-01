@@ -10,13 +10,17 @@ interface RemindersListProps {
   onToggleComplete: (id: string, currentStatus: boolean) => void;
   onDelete: (id: string) => void;
   getPriorityColor: (priority: string) => string;
+  highlightedId?: string | null;
+  setReminderRef?: (id: string, element: HTMLDivElement | null) => void;
 }
 
 const RemindersList = ({
   reminders,
   onToggleComplete,
   onDelete,
-  getPriorityColor
+  getPriorityColor,
+  highlightedId,
+  setReminderRef
 }: RemindersListProps) => {
 
   const formatReminderDate = (dateString: string, timeString?: string) => {
@@ -88,11 +92,14 @@ const RemindersList = ({
       {reminders.map((reminder) => {
         const status = getReminderStatus(reminder);
 
+        const isHighlighted = highlightedId === reminder.id;
+
         return (
           <Card
             key={reminder.id}
+            ref={(el) => setReminderRef?.(reminder.id, el)}
             className={`transition-all duration-200 ${getStatusColor(status)} ${reminder.is_completed ? 'opacity-70' : ''
-              }`}
+              } ${isHighlighted ? 'ring-4 ring-primary ring-offset-2 shadow-lg' : ''}`}
           >
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow, isValid } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -58,6 +59,7 @@ const formatDueLabel = (reminder: Reminder) => {
 export const useReminderNotifications = () => {
     const { user } = useAuth();
     const { toast } = useToast();
+    const navigate = useNavigate();
     const [reminders, setReminders] = useState<Reminder[]>([]);
     const hasShownInitialRef = useRef(false);
     const notifiedRef = useRef<Map<string, NotificationState>>(new Map());
@@ -130,6 +132,8 @@ export const useReminderNotifications = () => {
                 toast({
                     title: reminder.title,
                     description: `Due ${formatDueLabel(reminder)}`,
+                    onClick: () => navigate(`/reminders?id=${reminder.id}`),
+                    className: "cursor-pointer",
                 });
             }, INITIAL_TOAST_DELAY_MS + index * INITIAL_TOAST_STAGGER_MS);
 
@@ -186,6 +190,8 @@ export const useReminderNotifications = () => {
                         title: `${reminder.title} is due now`,
                         description: `Scheduled for ${formatDueLabel(reminder)}`,
                         variant: "destructive",
+                        onClick: () => navigate(`/reminders?id=${reminder.id}`),
+                        className: "cursor-pointer",
                     });
 
                     state.due = true;
@@ -198,6 +204,8 @@ export const useReminderNotifications = () => {
                     toast({
                         title: `Upcoming: ${reminder.title}`,
                         description: `${formatDueLabel(reminder)} (${formatDistanceToNow(date, { addSuffix: true })})`,
+                        onClick: () => navigate(`/reminders?id=${reminder.id}`),
+                        className: "cursor-pointer",
                     });
 
                     state.approaching = true;

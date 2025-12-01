@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Bell, Loader2 } from "lucide-react";
 import { isToday, isPast } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -17,10 +18,13 @@ type FilterType = 'all' | 'pending' | 'completed' | 'today';
 const Reminders = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const reminderRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const fetchReminders = useCallback(async () => {
     if (!user) return;
@@ -66,6 +70,28 @@ const Reminders = () => {
 
     fetchReminders();
   }, [fetchReminders, user]);
+
+  // Handle URL parameter to highlight and scroll to specific reminder
+  useEffect(() => {
+    const reminderId = searchParams.get('id');
+    if (reminderId && reminders.length > 0) {
+      setHighlightedId(reminderId);
+
+      // Scroll to the reminder after a short delay to ensure rendering
+      setTimeout(() => {
+        const element = reminderRefs.current.get(reminderId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 300);
+
+      // Clear highlight after 3 seconds
+      setTimeout(() => {
+        setHighlightedId(null);
+        setSearchParams(new URLSearchParams()); // Clear URL parameter
+      }, 3000);
+    }
+  }, [searchParams, reminders, setSearchParams]);
 
   const handleReminderCreated = () => {
     setShowForm(false);
@@ -283,6 +309,14 @@ const Reminders = () => {
               onToggleComplete={toggleReminderComplete}
               onDelete={deleteReminder}
               getPriorityColor={getPriorityColor}
+              highlightedId={highlightedId}
+              setReminderRef={(id, el) => {
+                if (el) {
+                  reminderRefs.current.set(id, el);
+                } else {
+                  reminderRefs.current.delete(id);
+                }
+              }}
             />
           )}
         </CardContent>
