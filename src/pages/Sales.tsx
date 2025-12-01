@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Receipt, BarChart3, FileText, DollarSign, Users, Layers, LineChart, Clock } from "lucide-react";
+import { Receipt, BarChart3, FileText, DollarSign, Users, Layers, LineChart, Clock, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -12,10 +12,11 @@ import CustomerTrackingDialog from "@/components/sales/CustomerTrackingDialog";
 import SaleReversalDialog from "@/components/sales/SaleReversalDialog";
 import ClientValueRatioDisplay from "@/components/sales/ClientValueRatioDisplay";
 import SalesHistory from "@/components/sales/SalesHistory";
+import PastSalesRecording from "@/components/documents/PastSalesRecording";
 
 
 const Sales = () => {
-  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "summary" | "expenses" | "customers" | "history">("recording");
+  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "summary" | "expenses" | "customers" | "history" | "past-sales">("recording");
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
@@ -39,7 +40,7 @@ const Sales = () => {
       />
 
       <Card className="rounded-2xl border border-border/70">
-        <div className="grid gap-2 border-b border-border/60 bg-muted/30 p-2 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid gap-2 border-b border-border/60 bg-muted/30 p-2 md:grid-cols-3 lg:grid-cols-7">
           <Button
             size="sm"
             variant={activeTab === "recording" ? "default" : "ghost"}
@@ -48,6 +49,15 @@ const Sales = () => {
           >
             <Receipt className="mr-2 h-4 w-4" />
             Record Sale
+          </Button>
+          <Button
+            size="sm"
+            variant={activeTab === "past-sales" ? "default" : "ghost"}
+            onClick={() => setActiveTab("past-sales")}
+            className="rounded-xl px-4 py-2"
+          >
+            <CalendarClock className="mr-2 h-4 w-4" />
+            Past Sale
           </Button>
           <Button
             size="sm"
@@ -108,6 +118,20 @@ const Sales = () => {
                 </div>
               </div>
               <SalesRecording />
+            </div>
+          )}
+          {activeTab === "past-sales" && (
+            <div className="space-y-6">
+              <div className="flex flex-col gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-4 text-sm md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-3">
+                  <CalendarClock className="h-5 w-5 text-amber-600" />
+                  <div>
+                    <p className="font-medium text-foreground">Recording Past Sales</p>
+                    <p className="text-xs text-muted-foreground">Sales will be timestamped with both the sale date and recording date</p>
+                  </div>
+                </div>
+              </div>
+              <PastSalesRecording />
             </div>
           )}
           {activeTab === "expenses" && (
