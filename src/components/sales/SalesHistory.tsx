@@ -4,11 +4,20 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
 import { fetchSalesAnalytics } from "@/lib/sales-analytics";
-import { Search } from "lucide-react";
+import { Search, Info, Clock } from "lucide-react";
 
 interface SaleHistoryRecord {
     id: string;
@@ -21,6 +30,8 @@ interface SaleHistoryRecord {
     reversalReason: string | null;
     reversalReceiptNumber: string | null;
     reversalDate: string | null;
+    createdAt: string;
+    isPastSale: boolean;
 }
 
 const getStatusBadgeVariant = (status: SaleHistoryRecord["status"]) => {
@@ -90,8 +101,24 @@ const SalesHistory = () => {
                 throw reversalResponse.error;
             }
 
+            // Fetch created_at timestamps from customer_purchases
+            const createdAtResponse = saleIds.length
+                ? await supabase
+                    .from("customer_purchases")
+                    .select("id, created_at")
+                    .in("id", saleIds)
+                : { data: [] as any[] | null, error: null };
+
+            if (createdAtResponse.error) {
+                throw createdAtResponse.error;
+            }
+
             const reversalMap = new Map(
                 (reversalResponse.data ?? []).map((reversal) => [reversal.original_sale_id, reversal])
+            );
+
+            const createdAtMap = new Map(
+                (createdAtResponse.data ?? []).map((record) => [record.id, record.created_at])
             );
 
             const mapped: SaleHistoryRecord[] = purchases.map((purchase) => {
@@ -102,6 +129,18 @@ const SalesHistory = () => {
                     : purchase.payment_method === "credit"
                         ? "credit"
                         : "completed";
+
+                // Get created_at from the map
+                const createdAtTimestamp = createdAtMap.get(purchase.sale_id) || purchase.purchase_date;
+
+                // Determine if this is a past sale
+                // Compare purchase_date with created_at - if they differ significantly, it's a past sale
+                const purchaseDate = new Date(purchase.purchase_date);
+                const createdAt = new Date(createdAtTimestamp);
+                const timeDiffMs = Math.abs(createdAt.getTime() - purchaseDate.getTime());
+                const timeDiffMinutes = timeDiffMs / (1000 * 60);
+                // If created_at is more than 5 minutes after purchase_date, it's a past sale
+                const isPastSale = timeDiffMinutes > 5;
 
                 return {
                     id: purchase.sale_id,
@@ -114,6 +153,8 @@ const SalesHistory = () => {
                     reversalReason: reversal?.reversal_reason ?? null,
                     reversalReceiptNumber: reversal?.reversal_receipt_number ?? null,
                     reversalDate: reversal?.reversal_date ?? null,
+                    createdAt: createdAtTimestamp,
+                    isPastSale,
                 };
             });
 
@@ -210,23 +251,101 @@ const SalesHistory = () => {
                             </TableHeader>
                             <TableBody>
                                 {filteredRecords.map((record) => (
-                                    <TableRow key={record.id}>
-                                        <TableCell className="font-medium">{record.productName}</TableCell>
+                                    <TableRow
+                                        key={record.id}
+                                        className={record.isPastSale ? "bg-amber-50/50 dark:bg-amber-950/20 border-l-4 border-l-amber-500" : ""}
+                                    >
+                                        <TableCell className="font-medium">
+                                            <div className="flex items-center gap-2">
+                                                {record.isPastSale && (
+                                                    <Clock className="w-4 h-4 text-amber-600" />
+                                                )}
+                                                {record.productName}
+                                            </div>
+                                        </TableCell>
                                         <TableCell>{record.customer}</TableCell>
                                         <TableCell>¢{record.amount.toFixed(2)}</TableCell>
                                         <TableCell className="capitalize">{record.paymentMethod}</TableCell>
                                         <TableCell>
-                                            <Badge variant={getStatusBadgeVariant(record.status)}>
-                                                {getStatusLabel(record.status)}
-                                            </Badge>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant={getStatusBadgeVariant(record.status)}>
+                                                    {getStatusLabel(record.status)}
+                                                </Badge>
+                                                {record.isPastSale && (
+                                                    <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300">
+                                                        Past
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell>{new Date(record.purchaseDate).toLocaleString()}</TableCell>
                                         <TableCell className="max-w-xs text-sm text-muted-foreground">
-                                            {record.status === "reverted"
-                                                ? record.reversalReason || "Reversal processed"
-                                                : record.status === "credit"
-                                                    ? "Awaiting payment"
-                                                    : "--"}
+                                            <div className="flex items-center gap-2">
+                                                <span className="flex-1">
+                                                    {record.status === "reverted"
+                                                        ? record.reversalReason || "Reversal processed"
+                                                        : record.status === "credit"
+                                                            ? "Awaiting payment"
+                                                            : record.isPastSale
+                                                                ? "Recorded retrospectively"
+                                                                : "--"}
+                                                </span>
+                                                {record.isPastSale && (
+                                                    <Dialog>
+                                                        <DialogTrigger asChild>
+                                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                                                <Info className="h-4 w-4 text-amber-600" />
+                                                            </Button>
+                                                        </DialogTrigger>
+                                                        <DialogContent>
+                                                            <DialogHeader>
+                                                                <DialogTitle className="flex items-center gap-2">
+                                                                    <Clock className="w-5 h-5 text-amber-600" />
+                                                                    Past Sale Details
+                                                                </DialogTitle>
+                                                                <DialogDescription>
+                                                                    This sale was recorded after it occurred
+                                                                </DialogDescription>
+                                                            </DialogHeader>
+                                                            <div className="space-y-4">
+                                                                <div className="grid grid-cols-2 gap-4">
+                                                                    <div>
+                                                                        <p className="text-sm font-medium text-muted-foreground">Sale Date</p>
+                                                                        <p className="text-sm font-semibold">
+                                                                            {new Date(record.purchaseDate).toLocaleString()}
+                                                                        </p>
+                                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                                            When the sale actually happened
+                                                                        </p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-sm font-medium text-muted-foreground">Recorded On</p>
+                                                                        <p className="text-sm font-semibold">
+                                                                            {new Date(record.createdAt).toLocaleString()}
+                                                                        </p>
+                                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                                            When it was entered into the system
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3">
+                                                                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                                                                        ⚠️ This sale was recorded retrospectively, which means it occurred on a different date than when it was entered into the system.
+                                                                    </p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-sm font-medium text-muted-foreground mb-2">Product</p>
+                                                                    <p className="text-sm">{record.productName}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-sm font-medium text-muted-foreground mb-2">Amount</p>
+                                                                    <p className="text-sm">¢{record.amount.toFixed(2)}</p>
+                                                                </div>
+                                                            </div>
+                                                        </DialogContent>
+                                                    </Dialog>
+                                                )}
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))}
