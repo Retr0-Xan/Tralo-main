@@ -29,6 +29,8 @@ interface InventoryProduct {
   product_name: string;
   current_stock: number;
   selling_price: number;
+  local_unit?: string;
+  international_unit?: string;
 }
 
 const SalesRecording = () => {
@@ -323,6 +325,22 @@ const SalesRecording = () => {
         const itemGETFund = applyTaxes ? itemTotalTax * (0.025 / 0.21) : 0;
         const itemCovid19 = applyTaxes ? itemTotalTax * (0.01 / 0.21) : 0;
 
+        // Get unit from inventory if available (prioritize local_unit)
+        let unitDisplay = 'units';
+        if (item.isFromInventory) {
+          const { data: productData } = await supabase
+            .from('user_products')
+            .select('local_unit, international_unit')
+            .eq('user_id', user!.id)
+            .ilike('product_name', item.productName)
+            .single();
+
+          if (productData) {
+            const product = productData as any;
+            unitDisplay = product.local_unit || product.international_unit || 'units';
+          }
+        }
+
         // Record the purchase
         const { data: purchaseRecord, error: purchaseError } = await supabase
           .from('customer_purchases')
@@ -389,10 +407,30 @@ const SalesRecording = () => {
 
       if (generateReceipt) {
         console.log('Generating receipt...');
+
+        // Fetch unit information for each item from inventory
+        const itemsWithUnits = await Promise.all(salesItems.map(async (item) => {
+          let unitOfMeasure = 'units';
+          if (item.isFromInventory) {
+            const { data: productData } = await supabase
+              .from('user_products')
+              .select('local_unit, international_unit')
+              .eq('user_id', user!.id)
+              .ilike('product_name', item.productName)
+              .single();
+
+            if (productData) {
+              const product = productData as any;
+              unitOfMeasure = product.local_unit || product.international_unit || 'units';
+            }
+          }
+          return { ...item, unitOfMeasure };
+        }));
+
         // Generate and download receipt using edge function
         const receiptData = {
           businessProfile,
-          items: salesItems,
+          items: itemsWithUnits,
           customer: {
             name: customerName || 'Walk-in Customer',
             phone: customerPhone || 'N/A'

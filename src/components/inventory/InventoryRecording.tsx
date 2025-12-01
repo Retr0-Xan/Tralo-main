@@ -85,6 +85,7 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
   const [createNewGroupForSingleItem, setCreateNewGroupForSingleItem] = useState(false);
   const [newSingleItemGroupName, setNewSingleItemGroupName] = useState("");
   const [newSingleItemGroupDescription, setNewSingleItemGroupDescription] = useState("");
+  const [existingProducts, setExistingProducts] = useState<any[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -111,6 +112,7 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
   useEffect(() => {
     fetchSuppliers();
     fetchInventoryGroups();
+    fetchExistingProducts();
   }, []);
 
   useEffect(() => {
@@ -143,6 +145,25 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
       });
     }
   }, [selectedGroup]);
+
+  const fetchExistingProducts = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('user_products')
+        .select('product_name, selling_price, unit_of_measure')
+        .eq('user_id', user.id)
+        .order('product_name');
+
+      if (!error && data) {
+        setExistingProducts(data);
+      }
+    } catch (error) {
+      console.error('Error fetching existing products:', error);
+    }
+  };
 
   const fetchInventoryGroups = async () => {
     try {
@@ -454,7 +475,7 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
         .single();
 
       if (existingProduct) {
-        // Update existing product - include selling price
+        // Update existing product - include selling price and unit
         const updateData: any = {
           current_stock: (existingProduct.current_stock || 0) + quantityNum,
           updated_at: new Date().toISOString()
@@ -465,12 +486,20 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           updateData.selling_price = parseFloat(sellingPrice);
         }
 
+        // Update units
+        if (localUnit) {
+          updateData.local_unit = localUnit;
+        }
+        if (internationalUnit) {
+          updateData.international_unit = internationalUnit;
+        }
+
         await supabase
           .from('user_products')
           .update(updateData)
           .eq('id', existingProduct.id);
       } else {
-        // Create new product - include selling price
+        // Create new product - include selling price and units
         const insertData: any = {
           user_id: userId,
           product_name: finalProductName.trim(),
@@ -482,6 +511,14 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           insertData.selling_price = parseFloat(sellingPrice);
         }
 
+        // Add units if provided
+        if (localUnit) {
+          insertData.local_unit = localUnit;
+        }
+        if (internationalUnit) {
+          insertData.international_unit = internationalUnit;
+        }
+
         await supabase
           .from('user_products')
           .insert(insertData);
@@ -490,19 +527,23 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
       // Create inventory receipt if supplier info is provided
       let receiptId = null;
       if (selectedSupplier) {
+        const receiptInsert: any = {
+          user_id: userId,
+          supplier_id: selectedSupplier,
+          product_name: finalProductName.trim(),
+          quantity_received: quantityNum,
+          unit_cost: unitCostNum || null,
+          total_cost: totalCost || null,
+          batch_number: batchNumber.trim() || null,
+          expiry_date: expiryDate || null,
+          received_date: new Date().toISOString()
+        };
+        if (localUnit) receiptInsert.local_unit = localUnit;
+        if (internationalUnit) receiptInsert.international_unit = internationalUnit;
+
         const { data: receipt, error: receiptError } = await supabase
           .from('inventory_receipts')
-          .insert({
-            user_id: userId,
-            supplier_id: selectedSupplier,
-            product_name: finalProductName.trim(),
-            quantity_received: quantityNum,
-            unit_cost: unitCostNum || null,
-            total_cost: totalCost || null,
-            batch_number: batchNumber.trim() || null,
-            expiry_date: expiryDate || null,
-            received_date: new Date().toISOString()
-          })
+          .insert(receiptInsert)
           .select('id')
           .single();
 
@@ -511,17 +552,21 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
       }
 
       // Create inventory movement record
+      const movementInsert: any = {
+        user_id: userId,
+        receipt_id: receiptId,
+        product_name: finalProductName.trim(),
+        movement_type: 'received',
+        quantity: quantityNum,
+        unit_price: unitCostNum || null,
+        notes: supplierNotes.trim() || null
+      };
+      if (localUnit) movementInsert.local_unit = localUnit;
+      if (internationalUnit) movementInsert.international_unit = internationalUnit;
+
       await supabase
         .from('inventory_movements')
-        .insert({
-          user_id: userId,
-          receipt_id: receiptId,
-          product_name: finalProductName.trim(),
-          movement_type: 'received',
-          quantity: quantityNum,
-          unit_price: unitCostNum || null,
-          notes: supplierNotes.trim() || null
-        });
+        .insert(movementInsert);
 
       // Create expense record if requested
       if (recordAsExpense && totalCost > 0) {
@@ -758,15 +803,52 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
               <Input
                 placeholder="Type custom product name here..."
                 value={productName}
-                onChange={(e) => setProductName(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setProductName(value);
+
+                  // Autofill from existing products
+                  const existing = existingProducts.find(
+                    p => p.product_name.toLowerCase() === value.toLowerCase()
+                  );
+                  if (existing) {
+                    if (existing.selling_price) {
+                      setSellingPrice(existing.selling_price.toString());
+                    }
+                    if (existing.local_unit) {
+                      setLocalUnit(existing.local_unit);
+                    }
+                    if (existing.international_unit) {
+                      setInternationalUnit(existing.international_unit);
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  // Also check on blur for better UX
+                  const value = e.target.value;
+                  const existing = existingProducts.find(
+                    p => p.product_name.toLowerCase() === value.toLowerCase()
+                  );
+                  if (existing) {
+                    if (existing.selling_price && !sellingPrice) {
+                      setSellingPrice(existing.selling_price.toString());
+                    }
+                    if (existing.local_unit && !localUnit) {
+                      setLocalUnit(existing.local_unit);
+                    }
+                    if (existing.international_unit && !internationalUnit) {
+                      setInternationalUnit(existing.international_unit);
+                    }
+                  }
+                }}
               />
             )}
           </div>
 
-          {/* Units Section */}
+          {/* Units Section - Local/International Units */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>International Standard Unit</Label>
+              <Label>International Standard Unit (Optional)</Label>
               <Select value={internationalUnit} onValueChange={setInternationalUnit}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select unit" />
@@ -780,11 +862,8 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
             </div>
 
             <div className="space-y-2">
-              <Label>Local Standard Unit</Label>
-              <Select value={localUnit} onValueChange={(value) => {
-                setLocalUnit(value);
-                setIsCustomUnit(value === "custom");
-              }}>
+              <Label>Local Standard Unit (Optional)</Label>
+              <Select value={localUnit} onValueChange={setLocalUnit}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select local unit" />
                 </SelectTrigger>
@@ -792,16 +871,8 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
                   {localUnits.map((unit) => (
                     <SelectItem key={unit} value={unit}>{unit}</SelectItem>
                   ))}
-                  <SelectItem value="custom">Custom Unit...</SelectItem>
                 </SelectContent>
               </Select>
-              {isCustomUnit && (
-                <Input
-                  placeholder="Enter your custom unit of measurement"
-                  value={customUnit}
-                  onChange={(e) => setCustomUnit(e.target.value)}
-                />
-              )}
             </div>
           </div>
 

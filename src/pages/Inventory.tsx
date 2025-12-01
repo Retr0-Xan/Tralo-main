@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Package, BarChart3, ClipboardCheck, FolderOpen } from "lucide-react";
+import { Package, BarChart3, ClipboardCheck, FolderOpen, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/PageHeader";
 import InventoryRecording from "@/components/inventory/InventoryRecording";
 import InventoryDashboard from "@/components/inventory/InventoryDashboard";
 import InventoryGroupsManager from "@/components/inventory/InventoryGroupsManager";
+import InventoryHistory from "@/components/inventory/InventoryHistory";
 
 const Inventory = () => {
-  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "groups">("recording");
+  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "groups" | "history">("recording");
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
 
   return (
@@ -57,12 +58,23 @@ const Inventory = () => {
             <FolderOpen className="mr-2 h-4 w-4" />
             Inventory Groups
           </Button>
+          <Button
+            size="sm"
+            variant={activeTab === "history" ? "default" : "ghost"}
+            onClick={() => setActiveTab("history")}
+            className="rounded-xl px-4 py-2"
+          >
+            <History className="mr-2 h-4 w-4" />
+            History
+          </Button>
         </div>
         <CardContent className="px-4 py-6 md:px-6">
           {activeTab === "recording" ? (
             <InventoryRecording selectedGroup={selectedGroup} onGroupCleared={() => setSelectedGroup(null)} />
           ) : activeTab === "dashboard" ? (
             <InventoryDashboard />
+          ) : activeTab === "history" ? (
+            <InventoryHistory />
           ) : (
             <InventoryGroupsManager
               onSelectGroup={(group) => {

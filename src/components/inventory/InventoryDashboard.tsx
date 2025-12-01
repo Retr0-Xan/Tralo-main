@@ -349,7 +349,7 @@ const InventoryDashboard = () => {
                 {inventoryData.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.product_name}</TableCell>
-                    <TableCell>{item.current_stock} units</TableCell>
+                    <TableCell>{item.current_stock} {item.local_unit || item.international_unit || 'units'}</TableCell>
                     <TableCell>{formatCurrency(item.total_value)}</TableCell>
                     <TableCell>{getStatusBadge(item.status)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-xs">

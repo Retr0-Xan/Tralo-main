@@ -15,6 +15,7 @@ interface ReceiptRequest {
     discount: number;
     total: number;
     isFromInventory: boolean;
+    unitOfMeasure?: string;
   }>;
   customer: {
     name: string;
@@ -106,7 +107,7 @@ const handler = async (req: Request): Promise<Response> => {
             ${saleData.items.map(item => `
             <div class="item-row">
                 <span>${item.productName}</span>
-                <span>${item.quantity}</span>
+                <span>${item.quantity} ${item.unitOfMeasure || 'units'}</span>
                 <span>₵${item.unitPrice.toFixed(2)}</span>
                 <span>₵${item.total.toFixed(2)}</span>
             </div>

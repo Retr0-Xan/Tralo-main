@@ -9,6 +9,8 @@ export interface InventoryOverviewItem {
     id: string;
     product_name: string;
     current_stock: number;
+    local_unit?: string;
+    international_unit?: string;
     last_sale_date?: string;
     total_sales_this_month: number;
     avg_selling_price?: number;
@@ -173,6 +175,8 @@ const buildInventoryOverview = async (userId: string): Promise<InventoryOverview
             id: product.id,
             product_name: product.product_name,
             current_stock: currentStock,
+            local_unit: (product as any).local_unit,
+            international_unit: (product as any).international_unit,
             last_sale_date: product.last_sale_date,
             total_sales_this_month: Number(product.total_sales_this_month ?? 0),
             avg_selling_price: avgSellingPrice,
