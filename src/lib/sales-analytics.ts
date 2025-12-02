@@ -15,6 +15,7 @@ export const fetchSalesAnalytics = async (
     userId: string,
     options: SalesFilterOptions = {}
 ): Promise<SalesAnalyticsRow[]> => {
+    // Query the view directly - RLS policies should allow access
     let query = supabase
         .from("sales_analytics")
         .select("*")
@@ -44,9 +45,11 @@ export const fetchSalesAnalytics = async (
     const { data, error } = await query;
 
     if (error) {
+        console.error('Error fetching sales analytics:', error);
         throw error;
     }
 
+    console.log('Sales analytics query result:', data?.length || 0, 'rows');
     return data ?? [];
 };
 

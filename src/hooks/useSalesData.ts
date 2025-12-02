@@ -89,9 +89,12 @@ export const useSalesData = () => {
       const lastWeekStart = new Date(weekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
       const lastWeekEnd = new Date(weekStart.getTime() - 1);
 
+      console.log('Fetching sales analytics for user:', user.id);
       const allSales = await fetchSalesAnalytics(user.id, { includeReversed: false });
+      console.log('Fetched sales data:', allSales.length, 'records');
 
       if (allSales.length === 0) {
+        console.log('No sales data found, setting empty states');
         setSalesMetrics({
           todaySales: "0.00",
           weekSales: "0.00",
@@ -131,7 +134,22 @@ export const useSalesData = () => {
         return saleDate >= lastWeekStart && saleDate <= lastWeekEnd;
       });
 
-      // Product analysis for this week
+      // Product analysis for all time (for breakdown)
+      const productStatsAllTime = allSales.reduce((acc, sale) => {
+        const product = sale.product_name;
+        const quantity = Number(sale.effective_quantity ?? sale.quantity ?? 0);
+        const revenue = Number(sale.effective_amount ?? sale.amount ?? 0);
+
+        if (!acc[product]) {
+          acc[product] = { quantity: 0, revenue: 0 };
+        }
+
+        acc[product].quantity += quantity;
+        acc[product].revenue += revenue;
+        return acc;
+      }, {} as Record<string, { quantity: number; revenue: number }>);
+
+      // Product analysis for this week (for best/slow sellers and trends)
       const productStats = weekSales.reduce((acc, sale) => {
         const product = sale.product_name;
         const quantity = Number(sale.effective_quantity ?? sale.quantity ?? 0);
@@ -170,8 +188,12 @@ export const useSalesData = () => {
       const bestSeller = sortedByQuantity[0] || ["No sales", { quantity: 0, revenue: 0 }];
       const slowSeller = sortedByQuantity[sortedByQuantity.length - 1] || ["No sales", { quantity: 0, revenue: 0 }];
 
-      // Create sales breakdown
-      const breakdown: SalesBreakdownItem[] = productEntries.map(([product, stats]) => ({
+      // Create sales breakdown from all-time data
+      const breakdownEntries = Object.entries(productStatsAllTime) as Array<[
+        string,
+        { quantity: number; revenue: number }
+      ]>;
+      const breakdown: SalesBreakdownItem[] = breakdownEntries.map(([product, stats]) => ({
         item: product,
         unitsSold: stats.quantity,
         revenue: formatCurrency(stats.revenue),
