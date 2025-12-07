@@ -7,6 +7,7 @@ import {
   Bell,
   Receipt,
   LayoutDashboard,
+  DollarSign,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 const Index = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { todaysSales, monthlyGoodsTraded, currentStockValue, loading } = useHomeMetrics();
+  const { todaysSales, monthlyGoodsTraded, currentStockValue, monthlyProfit, loading } = useHomeMetrics();
 
   const formatCurrency = (amount: number, currency: string = "¢") => {
     return `${currency}${amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -60,6 +61,12 @@ const Index = () => {
           value={loading ? "Calculating…" : formatCurrency(currentStockValue)}
           icon={Package}
           helperText="Based on inventory records"
+        />
+        <MetricCard
+          title="Monthly Profit"
+          value={loading ? "Calculating…" : formatCurrency(Math.round(monthlyProfit), "¢")}
+          icon={DollarSign}
+          helperText="Revenue minus cost of goods"
         />
         <MetricCard
           title="Avg. Daily Revenue"

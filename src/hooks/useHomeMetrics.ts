@@ -9,6 +9,7 @@ interface HomeMetricsResult {
   todaysSales: number;
   monthlyGoodsTraded: number;
   currentStockValue: number;
+  monthlyProfit: number;
 }
 
 interface HomeMetrics extends HomeMetricsResult {
@@ -33,7 +34,7 @@ const fetchHomeMetrics = async (userId: string): Promise<HomeMetricsResult> => {
       .lt("purchase_date", endOfDay.toISOString()),
     supabase
       .from("sales_analytics")
-      .select("effective_amount")
+      .select("effective_amount, product_name, effective_quantity")
       .eq("user_id", userId)
       .eq("is_reversed", false)
       .gte("purchase_date", startOfMonth.toISOString())
@@ -141,10 +142,68 @@ const fetchHomeMetrics = async (userId: string): Promise<HomeMetricsResult> => {
     }
   }
 
+  // Calculate monthly profit (Revenue - COGS)
+  let monthlyCOGS = 0;
+
+  if (monthlySalesResult.data && monthlySalesResult.data.length > 0) {
+    for (const sale of monthlySalesResult.data) {
+      const productName = (sale.product_name ?? "").toLowerCase();
+      const quantitySold = Number(sale.effective_quantity ?? 0);
+
+      if (quantitySold === 0) continue;
+
+      // Find cost from receipts
+      const productReceipts = receipts.filter((receipt) =>
+        (receipt.product_name ?? "").toLowerCase() === productName
+      );
+
+      const totalReceiptQuantity = productReceipts.reduce(
+        (sum, receipt) => sum + Number(receipt.quantity_received ?? 0),
+        0,
+      );
+      const totalReceiptCost = productReceipts.reduce((sum, receipt) => {
+        const derivedCost =
+          receipt.total_cost ?? Number(receipt.unit_cost ?? 0) * Number(receipt.quantity_received ?? 0);
+        return sum + Number(derivedCost ?? 0);
+      }, 0);
+
+      let costPerUnit = totalReceiptQuantity > 0 ? totalReceiptCost / totalReceiptQuantity : 0;
+
+      // Fallback to movements if no receipt data
+      if (costPerUnit === 0) {
+        const productMovements = movementReceipts.filter(
+          (movement) => (movement.product_name ?? "").toLowerCase() === productName,
+        );
+
+        const movementTotals = productMovements.reduce(
+          (acc, movement) => {
+            const quantity = Math.abs(Number(movement.quantity ?? 0));
+            const unitPrice = Number(movement.unit_price ?? 0);
+            return {
+              quantity: acc.quantity + quantity,
+              cost: acc.cost + quantity * unitPrice,
+            };
+          },
+          { quantity: 0, cost: 0 },
+        );
+
+        if (movementTotals.quantity > 0 && movementTotals.cost > 0) {
+          costPerUnit = movementTotals.cost / movementTotals.quantity;
+        }
+      }
+
+      // Add to COGS
+      monthlyCOGS += costPerUnit * quantitySold;
+    }
+  }
+
+  const monthlyProfit = monthlyGoodsTraded - monthlyCOGS;
+
   return {
     todaysSales,
     monthlyGoodsTraded,
     currentStockValue,
+    monthlyProfit,
   };
 };
 
@@ -175,6 +234,7 @@ export const useHomeMetrics = (): HomeMetrics => {
       todaysSales: 0,
       monthlyGoodsTraded: 0,
       currentStockValue: 0,
+      monthlyProfit: 0,
       loading: false,
       error: null,
     };
@@ -184,6 +244,7 @@ export const useHomeMetrics = (): HomeMetrics => {
     todaysSales: data?.todaysSales ?? 0,
     monthlyGoodsTraded: data?.monthlyGoodsTraded ?? 0,
     currentStockValue: data?.currentStockValue ?? 0,
+    monthlyProfit: data?.monthlyProfit ?? 0,
     loading: isLoading || isFetching,
     error: error
       ? error instanceof Error
