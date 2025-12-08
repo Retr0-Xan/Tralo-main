@@ -564,11 +564,8 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
       if (localUnit) movementInsert.local_unit = localUnit;
       if (internationalUnit) movementInsert.international_unit = internationalUnit;
 
-      await supabase
-        .from('inventory_movements')
-        .insert(movementInsert);
-
-      // Create expense record if requested
+      // Create expense record first if requested, so we can link it
+      let expenseId: string | null = null;
       if (recordAsExpense && totalCost > 0) {
         const supplierName = suppliers.find(s => s.id === selectedSupplier)?.name || 'Unknown Supplier';
 
@@ -577,7 +574,7 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           user_uuid: userId
         });
 
-        await supabase
+        const { data: expenseData, error: expenseError } = await supabase
           .from('expenses')
           .insert({
             user_id: userId,
@@ -589,8 +586,33 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
             description: `Purchase of ${quantity} ${finalProductName}`,
             notes: supplierNotes.trim() || null,
             payment_method: 'cash'
-          });
+          })
+          .select()
+          .single();
+
+        if (expenseError) {
+          console.error('Error creating expense:', expenseError);
+        } else if (expenseData) {
+          expenseId = expenseData.id;
+        }
       }
+
+      // Link expense to receipt if both exist
+      if (expenseId && receiptId) {
+        await supabase
+          .from('inventory_receipts')
+          .update({ expense_id: expenseId })
+          .eq('id', receiptId);
+      }
+
+      // Link expense to movement
+      if (expenseId) {
+        movementInsert.expense_id = expenseId;
+      }
+
+      await supabase
+        .from('inventory_movements')
+        .insert(movementInsert);
 
       toast({
         title: "🎉 Product Added Successfully!",
