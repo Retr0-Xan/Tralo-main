@@ -524,12 +524,12 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           .insert(insertData);
       }
 
-      // Create inventory receipt if supplier info is provided
+      // Create inventory receipt if supplier info is provided OR if recording as expense
       let receiptId = null;
-      if (selectedSupplier) {
+      if (selectedSupplier || (recordAsExpense && totalCost > 0)) {
         const receiptInsert: any = {
           user_id: userId,
-          supplier_id: selectedSupplier,
+          supplier_id: selectedSupplier || null,
           product_name: finalProductName.trim(),
           quantity_received: quantityNum,
           unit_cost: unitCostNum || null,
