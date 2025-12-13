@@ -69,6 +69,8 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
   const [selectedProduct, setSelectedProduct] = useState("");
   const [internationalUnit, setInternationalUnit] = useState("");
   const [localUnit, setLocalUnit] = useState("");
+  const [customLocalUnit, setCustomLocalUnit] = useState("");
+  const [isCustomLocalUnit, setIsCustomLocalUnit] = useState(false);
   const [recordAsExpense, setRecordAsExpense] = useState(false);
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [bulkItems, setBulkItems] = useState<BulkInventoryItem[]>([]);
@@ -101,7 +103,7 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
     "drum", "barrel", "piece", "heap", "pile", "basket", "crate", "box", "packet",
     "roll", "tuber", "ton", "unit", "head", "slab", "cut", "portion", "bundle",
     "finger", "hand", "bunch", "pan", "basin", "trip", "board", "yard", "bale",
-    "dozen", "pair", "set", "tin"
+    "dozen", "pair", "set", "tin", "Custom..."
   ];
 
   const productCategories = [
@@ -538,7 +540,8 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           expiry_date: expiryDate || null,
           received_date: new Date().toISOString()
         };
-        if (localUnit) receiptInsert.local_unit = localUnit;
+        const finalLocalUnit = isCustomLocalUnit ? customLocalUnit.trim() : localUnit;
+        if (finalLocalUnit) receiptInsert.local_unit = finalLocalUnit;
         if (internationalUnit) receiptInsert.international_unit = internationalUnit;
 
         const { data: receipt, error: receiptError } = await supabase
@@ -561,7 +564,8 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
         unit_price: unitCostNum || null,
         notes: supplierNotes.trim() || null
       };
-      if (localUnit) movementInsert.local_unit = localUnit;
+      const finalLocalUnit = isCustomLocalUnit ? customLocalUnit.trim() : localUnit;
+      if (finalLocalUnit) movementInsert.local_unit = finalLocalUnit;
       if (internationalUnit) movementInsert.international_unit = internationalUnit;
 
       // Create expense record first if requested, so we can link it
@@ -640,6 +644,8 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
       setSelectedCategory("");
       setInternationalUnit("");
       setLocalUnit("");
+      setCustomLocalUnit("");
+      setIsCustomLocalUnit(false);
       setCustomUnit("");
       setIsCustomUnit(false);
       setRecordAsExpense(false);
@@ -885,7 +891,19 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
 
             <div className="space-y-2">
               <Label>Local Standard Unit (Optional)</Label>
-              <Select value={localUnit} onValueChange={setLocalUnit}>
+              <Select
+                value={isCustomLocalUnit ? "Custom..." : localUnit}
+                onValueChange={(value) => {
+                  if (value === "Custom...") {
+                    setIsCustomLocalUnit(true);
+                    setLocalUnit("");
+                  } else {
+                    setIsCustomLocalUnit(false);
+                    setLocalUnit(value);
+                    setCustomLocalUnit("");
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select local unit" />
                 </SelectTrigger>
@@ -895,6 +913,14 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
                   ))}
                 </SelectContent>
               </Select>
+              {isCustomLocalUnit && (
+                <Input
+                  placeholder="Enter custom local unit"
+                  value={customLocalUnit}
+                  onChange={(e) => setCustomLocalUnit(e.target.value)}
+                  className="mt-2"
+                />
+              )}
             </div>
           </div>
 
