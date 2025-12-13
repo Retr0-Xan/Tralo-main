@@ -68,12 +68,6 @@ const Index = () => {
           icon={DollarSign}
           helperText="Revenue minus cost of goods"
         />
-        <MetricCard
-          title="Avg. Daily Revenue"
-          value={loading ? "Updating…" : formatCurrency(Math.round(averageDailySales), "¢")}
-          icon={TrendingUp}
-          helperText="Month-to-date performance"
-        />
       </section>
 
       <section className="grid gap-4 sm:gap-6 lg:grid-cols-7">

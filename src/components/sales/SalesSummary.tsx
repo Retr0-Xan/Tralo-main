@@ -3,11 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { 
-  FileText, 
-  Calendar, 
-  DollarSign, 
-  TrendingUp, 
+import {
+  FileText,
+  Calendar,
+  DollarSign,
+  TrendingUp,
   TrendingDown,
   CreditCard,
   AlertCircle,
@@ -19,12 +19,16 @@ import { useToast } from "@/hooks/use-toast";
 import TrustScoreBadge from "@/components/TrustScoreBadge";
 import { useSalesSummaryData } from "@/hooks/useSalesSummaryData";
 import { useReportsDownload } from "@/hooks/useReportsDownload";
+import { useHomeMetrics } from "@/hooks/useHomeMetrics";
 
 const SalesSummary = () => {
   const { toast } = useToast();
   const [selectedPeriod, setSelectedPeriod] = useState("today");
   const { summaryData, performanceInsights, loading, refreshData } = useSalesSummaryData();
   const { generateSalesReport, generateFinancialStatement } = useReportsDownload();
+  const { monthlyGoodsTraded, loading: metricsLoading } = useHomeMetrics();
+
+  const averageDailyRevenue = monthlyGoodsTraded > 0 ? monthlyGoodsTraded / new Date().getDate() : 0;
 
   const currentData = summaryData[selectedPeriod] || {
     revenue: "0.00",
@@ -54,7 +58,7 @@ const SalesSummary = () => {
   const getPeriodLabel = (period: string) => {
     const labels = {
       today: "Today",
-      week: "This Week", 
+      week: "This Week",
       month: "This Month",
       quarter: "This Quarter",
       year: "This Year",
@@ -73,7 +77,7 @@ const SalesSummary = () => {
             <TrustScoreBadge size="sm" />
           </div>
         </div>
-        
+
         <div className="flex gap-3">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
             <SelectTrigger className="w-48">
@@ -88,10 +92,10 @@ const SalesSummary = () => {
               <SelectItem value="overall">Overall History</SelectItem>
             </SelectContent>
           </Select>
-          
-          <Button 
-            variant="outline" 
-            size="sm" 
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={refreshData}
             className="flex items-center gap-2"
             disabled={loading}
@@ -99,7 +103,7 @@ const SalesSummary = () => {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          
+
           {selectedPeriod === "today" && (
             <Button onClick={handleCloseDay} className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
@@ -186,6 +190,12 @@ const SalesSummary = () => {
                     <span className="text-sm">Total Revenue</span>
                     <span className="font-semibold text-green-600">₵{currentData.revenue}</span>
                   </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+                    <span className="text-sm">Avg. Daily Revenue (MTD)</span>
+                    <span className="font-semibold text-green-600">
+                      {metricsLoading ? "Calculating…" : `₵${Math.round(averageDailyRevenue).toLocaleString()}`}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -209,25 +219,25 @@ const SalesSummary = () => {
               </div>
             </div>
 
-          {/* Outstanding & Credit */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <h3 className="font-semibold text-orange-700 dark:text-orange-300">⏳ Outstanding (Credit Owed)</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center p-3 rounded-lg bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800">
-                  <span className="text-sm">Full Credit Sales</span>
-                  <span className="font-semibold text-orange-600">₵{currentData.credit}</span>
-                </div>
-                <div className="flex justify-between items-center p-3 rounded-lg bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800">
-                  <span className="text-sm">Partial Payment Outstanding</span>
-                  <span className="font-semibold text-orange-600">₵{currentData.moneyOwed}</span>
-                </div>
-                <div className="flex justify-between items-center p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
-                  <span className="text-sm font-medium">Total Outstanding</span>
-                  <span className="font-bold text-red-600">₵{(parseFloat(currentData.credit.replace(',', '')) + parseFloat(currentData.moneyOwed.replace(',', ''))).toFixed(2)}</span>
+            {/* Outstanding & Credit */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <h3 className="font-semibold text-orange-700 dark:text-orange-300">⏳ Outstanding (Credit Owed)</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800">
+                    <span className="text-sm">Full Credit Sales</span>
+                    <span className="font-semibold text-orange-600">₵{currentData.credit}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800">
+                    <span className="text-sm">Partial Payment Outstanding</span>
+                    <span className="font-semibold text-orange-600">₵{currentData.moneyOwed}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+                    <span className="text-sm font-medium">Total Outstanding</span>
+                    <span className="font-bold text-red-600">₵{(parseFloat(currentData.credit.replace(',', '')) + parseFloat(currentData.moneyOwed.replace(',', ''))).toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
               {/* Net Profit */}
               <div className="space-y-3">
@@ -246,26 +256,26 @@ const SalesSummary = () => {
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4 border-t">
-              <Button 
+              <Button
                 onClick={handleDownloadReport}
-                variant="outline" 
+                variant="outline"
                 className="flex items-center gap-2"
                 disabled={loading}
               >
                 <Download className="w-4 h-4" />
                 Download Sales Report
               </Button>
-              
-              <Button 
+
+              <Button
                 onClick={handleDownloadFinancialStatement}
-                variant="outline" 
+                variant="outline"
                 className="flex items-center gap-2"
                 disabled={loading}
               >
                 <Download className="w-4 h-4" />
                 Download Financial Statement
               </Button>
-              
+
               {currentData.credit !== "0.00" && (
                 <Button variant="secondary" className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4" />
@@ -295,16 +305,14 @@ const SalesSummary = () => {
               </div>
             ) : performanceInsights.length > 0 ? (
               performanceInsights.map((insight, index) => (
-                <div key={index} className={`p-3 rounded-lg border ${
-                  insight.type === 'success' ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' :
-                  insight.type === 'warning' ? 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800' :
-                  'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800'
-                }`}>
-                  <p className={`text-sm ${
-                    insight.type === 'success' ? 'text-green-800 dark:text-green-200' :
-                    insight.type === 'warning' ? 'text-orange-800 dark:text-orange-200' :
-                    'text-blue-800 dark:text-blue-200'
+                <div key={index} className={`p-3 rounded-lg border ${insight.type === 'success' ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' :
+                    insight.type === 'warning' ? 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800' :
+                      'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800'
                   }`}>
+                  <p className={`text-sm ${insight.type === 'success' ? 'text-green-800 dark:text-green-200' :
+                      insight.type === 'warning' ? 'text-orange-800 dark:text-orange-200' :
+                        'text-blue-800 dark:text-blue-200'
+                    }`}>
                     {insight.message}
                   </p>
                 </div>
