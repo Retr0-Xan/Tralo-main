@@ -46,21 +46,36 @@ export const useSalesSummaryData = () => {
         includeReversed: false
       });
 
-      // Fetch expenses
+      // Fetch expenses (excluding reversed expenses)
       const { data: expenses } = await supabase
         .from('expenses')
         .select('amount, category')
         .eq('user_id', user.id)
+        .eq('is_reversed', false)
         .gte('expense_date', startDate.toISOString().split('T')[0])
         .lte('expense_date', endDate.toISOString().split('T')[0]);
 
-      // Fetch inventory costs
+      // Fetch inventory costs (excluding those linked to reversed expenses)
       const { data: inventoryData } = await supabase
         .from('inventory_receipts')
-        .select('total_cost')
+        .select('total_cost, expense_id')
         .eq('user_id', user.id)
         .gte('received_date', startDate.toISOString())
         .lte('received_date', endDate.toISOString());
+
+      // Get all reversed expense IDs to filter them out
+      const { data: reversedExpenses } = await supabase
+        .from('expenses')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_reversed', true);
+
+      const reversedExpenseIds = new Set(reversedExpenses?.map(e => e.id) || []);
+
+      // Filter out inventory receipts linked to reversed expenses
+      const validInventoryData = inventoryData?.filter(item =>
+        !item.expense_id || !reversedExpenseIds.has(item.expense_id)
+      ) || [];
 
       // Calculate totals
       const validSales = sales.filter((sale) => Number(sale.effective_amount ?? sale.amount ?? 0) > 0);
@@ -87,12 +102,13 @@ export const useSalesSummaryData = () => {
 
       const totalCreditOutstanding = fullCreditSales + partialPaymentOutstanding;
 
-      const inventoryCost = inventoryData?.reduce((sum, item) => sum + (Number(item.total_cost) || 0), 0) || 0;
+      const inventoryCost = validInventoryData.reduce((sum, item) => sum + (Number(item.total_cost) || 0), 0);
       const operatingExpenses = expenses?.reduce((sum, expense) => sum + Number(expense.amount), 0) || 0;
       const miscellaneous = 0; // Can be calculated from other expense categories
 
       console.log('Inventory Cost (receipts in period):', inventoryCost);
-      console.log('Inventory receipts count:', inventoryData?.length || 0);
+      console.log('Inventory receipts count:', validInventoryData.length);
+      console.log('Filtered out reversed expense receipts:', (inventoryData?.length || 0) - validInventoryData.length);
       console.log('Operating Expenses:', operatingExpenses);
       console.log('Expenses count:', expenses?.length || 0);
 
