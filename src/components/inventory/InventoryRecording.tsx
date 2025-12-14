@@ -66,6 +66,8 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
   const [customUnit, setCustomUnit] = useState("");
   const [isCustomUnit, setIsCustomUnit] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [internationalUnit, setInternationalUnit] = useState("");
   const [localUnit, setLocalUnit] = useState("");
@@ -660,9 +662,10 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           updateData.international_unit = internationalUnit;
         }
 
-        // Update category
-        if (selectedCategory) {
-          updateData.category = selectedCategory;
+        // Update category (use custom if provided)
+        const finalCategory = isCustomCategory ? customCategory.trim() : selectedCategory;
+        if (finalCategory) {
+          updateData.category = finalCategory;
         }
 
         await supabase
@@ -697,9 +700,10 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           insertData.international_unit = internationalUnit;
         }
 
-        // Add category if provided
-        if (selectedCategory) {
-          insertData.category = selectedCategory;
+        // Add category if provided (use custom if provided)
+        const finalCategory = isCustomCategory ? customCategory.trim() : selectedCategory;
+        if (finalCategory) {
+          insertData.category = finalCategory;
         }
 
         await supabase
@@ -828,6 +832,8 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
       setSupplierNotes("");
       setSelectedProduct("");
       setSelectedCategory("");
+      setCustomCategory("");
+      setIsCustomCategory(false);
       setInternationalUnit("");
       setLocalUnit("");
       setCustomLocalUnit("");
@@ -1143,7 +1149,19 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           {/* Category */}
           <div className="space-y-2">
             <Label>Product Category</Label>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <Select
+              value={isCustomCategory ? "Other" : selectedCategory}
+              onValueChange={(value) => {
+                if (value === "Other") {
+                  setIsCustomCategory(true);
+                  setSelectedCategory("");
+                } else {
+                  setIsCustomCategory(false);
+                  setSelectedCategory(value);
+                  setCustomCategory("");
+                }
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
@@ -1153,6 +1171,14 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
                 ))}
               </SelectContent>
             </Select>
+            {isCustomCategory && (
+              <Input
+                placeholder="Enter custom category name"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                className="mt-2"
+              />
+            )}
           </div>
 
           {/* Supplier Information (Optional) */}

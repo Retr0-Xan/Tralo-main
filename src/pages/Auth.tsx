@@ -50,6 +50,9 @@ const Auth = () => {
     ownerName: ""
   });
 
+  const [customBusinessType, setCustomBusinessType] = useState("");
+  const [isCustomBusinessType, setIsCustomBusinessType] = useState(false);
+
   const [countrySearch, setCountrySearch] = useState("");
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
 
@@ -487,7 +490,19 @@ const Auth = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="businessType">Business Type</Label>
-                  <Select onValueChange={(value) => handleInputChange("businessType", value)}>
+                  <Select
+                    value={isCustomBusinessType ? "Other" : formData.businessType}
+                    onValueChange={(value) => {
+                      if (value === "Other") {
+                        setIsCustomBusinessType(true);
+                        handleInputChange("businessType", "");
+                      } else {
+                        setIsCustomBusinessType(false);
+                        handleInputChange("businessType", value);
+                        setCustomBusinessType("");
+                      }
+                    }}
+                  >
                     <SelectTrigger className={errors.businessType ? "border-destructive" : ""}>
                       <SelectValue placeholder="Select business type" />
                     </SelectTrigger>
@@ -504,6 +519,17 @@ const Auth = () => {
                       <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
+                  {isCustomBusinessType && (
+                    <Input
+                      placeholder="Enter custom business type"
+                      value={customBusinessType}
+                      onChange={(e) => {
+                        setCustomBusinessType(e.target.value);
+                        handleInputChange("businessType", e.target.value);
+                      }}
+                      className="mt-2"
+                    />
+                  )}
                   {errors.businessType && (
                     <p className="text-sm text-destructive">{errors.businessType}</p>
                   )}

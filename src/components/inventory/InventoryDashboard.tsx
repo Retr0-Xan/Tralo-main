@@ -60,6 +60,8 @@ const InventoryDashboard = () => {
   const [lossProduct, setLossProduct] = useState("");
   const [lossQuantity, setLossQuantity] = useState("");
   const [lossReason, setLossReason] = useState("");
+  const [customLossReason, setCustomLossReason] = useState("");
+  const [isCustomLossReason, setIsCustomLossReason] = useState(false);
   const [lossNotes, setLossNotes] = useState("");
   const [recordAsExpense, setRecordAsExpense] = useState(false);
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
@@ -86,12 +88,22 @@ const InventoryDashboard = () => {
       return;
     }
 
+    if (isCustomLossReason && !customLossReason.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a custom loss reason",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setRecordingLoss(true);
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return;
 
       const lossQty = parseInt(lossQuantity);
+      const finalLossReason = isCustomLossReason ? customLossReason : lossReason;
 
       // Update product stock
       const { data: product } = await supabase
@@ -145,7 +157,7 @@ const InventoryDashboard = () => {
               user_id: authUser.id,
               category: 'Loss/Damage',
               amount: estimatedValue,
-              description: `${lossReason.charAt(0).toUpperCase() + lossReason.slice(1)} - ${lossProduct} (${lossQty} units)${lossNotes ? ': ' + lossNotes : ''}`,
+              description: `${finalLossReason.charAt(0).toUpperCase() + finalLossReason.slice(1)} - ${lossProduct} (${lossQty} units)${lossNotes ? ': ' + lossNotes : ''}`,
               expense_date: new Date().toISOString()
             });
         }
@@ -159,6 +171,8 @@ const InventoryDashboard = () => {
         setLossProduct("");
         setLossQuantity("");
         setLossReason("");
+        setCustomLossReason("");
+        setIsCustomLossReason(false);
         setLossNotes("");
         setRecordAsExpense(false);
         if (authUser.id) {
@@ -455,7 +469,16 @@ const InventoryDashboard = () => {
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select value={lossReason} onValueChange={setLossReason}>
+              <Select
+                value={lossReason}
+                onValueChange={(value) => {
+                  setLossReason(value);
+                  setIsCustomLossReason(value === "other");
+                  if (value !== "other") {
+                    setCustomLossReason("");
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Reason for loss" />
                 </SelectTrigger>
@@ -467,6 +490,13 @@ const InventoryDashboard = () => {
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
+              {isCustomLossReason && (
+                <Input
+                  placeholder="Enter custom loss reason"
+                  value={customLossReason}
+                  onChange={(e) => setCustomLossReason(e.target.value)}
+                />
+              )}
             </div>
             <Textarea
               placeholder="Additional notes about the loss..."

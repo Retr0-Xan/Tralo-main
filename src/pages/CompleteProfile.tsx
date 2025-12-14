@@ -38,7 +38,8 @@ const CompleteProfile = () => {
         businessType: "",
         ownerName: ""
     });
-
+    const [customBusinessType, setCustomBusinessType] = useState("");
+    const [isCustomBusinessType, setIsCustomBusinessType] = useState(false);
     const [countrySearch, setCountrySearch] = useState("");
     const [showCountryDropdown, setShowCountryDropdown] = useState(false);
 
@@ -74,7 +75,7 @@ const CompleteProfile = () => {
                     .from('business_profiles')
                     .select('business_name, owner_name, phone_number')
                     .eq('user_id', user.id)
-                    .single();
+                    .maybeSingle();
 
                 if (!error && businessProfile && businessProfile.business_name && businessProfile.owner_name && businessProfile.phone_number) {
                     // Profile is complete, redirect to home
@@ -355,7 +356,19 @@ const CompleteProfile = () => {
 
                         <div className="space-y-2">
                             <Label htmlFor="businessType">Business Type</Label>
-                            <Select onValueChange={(value) => handleInputChange("businessType", value)}>
+                            <Select
+                                value={isCustomBusinessType ? "Other" : formData.businessType}
+                                onValueChange={(value) => {
+                                    if (value === "Other") {
+                                        setIsCustomBusinessType(true);
+                                        handleInputChange("businessType", "");
+                                    } else {
+                                        setIsCustomBusinessType(false);
+                                        handleInputChange("businessType", value);
+                                        setCustomBusinessType("");
+                                    }
+                                }}
+                            >
                                 <SelectTrigger className={errors.businessType ? "border-destructive" : ""}>
                                     <SelectValue placeholder="Select business type" />
                                 </SelectTrigger>
@@ -372,6 +385,17 @@ const CompleteProfile = () => {
                                     <SelectItem value="Other">Other</SelectItem>
                                 </SelectContent>
                             </Select>
+                            {isCustomBusinessType && (
+                                <Input
+                                    placeholder="Enter custom business type"
+                                    value={customBusinessType}
+                                    onChange={(e) => {
+                                        setCustomBusinessType(e.target.value);
+                                        handleInputChange("businessType", e.target.value);
+                                    }}
+                                    className="mt-2"
+                                />
+                            )}
                             {errors.businessType && (
                                 <p className="text-sm text-destructive">{errors.businessType}</p>
                             )}

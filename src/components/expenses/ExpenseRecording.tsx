@@ -15,7 +15,7 @@ const expenseSchema = z.object({
   vendor_name: z.string().trim().min(1, "Vendor name is required").max(100, "Vendor name too long"),
   category: z.string().min(1, "Category is required"),
   amount: z.string().min(1, "Amount is required").refine(
-    (val) => !isNaN(Number(val)) && Number(val) > 0, 
+    (val) => !isNaN(Number(val)) && Number(val) > 0,
     "Amount must be a valid positive number"
   ),
   expense_date: z.string().min(1, "Date is required"),
@@ -44,10 +44,12 @@ const ExpenseRecording = ({ onExpenseRecorded }: ExpenseRecordingProps) => {
     notes: ""
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ExpenseFormData, string>>>({});
+  const [customCategory, setCustomCategory] = useState("");
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
 
   const categories = [
     "Office Supplies",
-    "Transport & Fuel", 
+    "Transport & Fuel",
     "Marketing & Advertising",
     "Rent & Utilities",
     "Equipment & Tools",
@@ -97,22 +99,22 @@ const ExpenseRecording = ({ onExpenseRecorded }: ExpenseRecordingProps) => {
 
   const generateExpenseNumber = async (): Promise<string> => {
     if (!user) throw new Error("User not authenticated");
-    
+
     const { data, error } = await supabase
       .rpc('generate_expense_number', { user_uuid: user.id });
-    
+
     if (error) {
       console.error('Error generating expense number:', error);
       // Fallback to timestamp-based number
       return `EXP-${Date.now().toString().slice(-6)}`;
     }
-    
+
     return data;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
       toast({
         title: "Authentication Error",
@@ -124,7 +126,7 @@ const ExpenseRecording = ({ onExpenseRecorded }: ExpenseRecordingProps) => {
 
     if (!validateForm()) {
       toast({
-        title: "Validation Error", 
+        title: "Validation Error",
         description: "Please check all required fields.",
         variant: "destructive"
       });
@@ -135,12 +137,14 @@ const ExpenseRecording = ({ onExpenseRecorded }: ExpenseRecordingProps) => {
 
     try {
       const expenseNumber = await generateExpenseNumber();
-      
+
+      const finalCategory = isCustomCategory ? customCategory.trim() : formData.category;
+
       const expenseData = {
         user_id: user.id,
         expense_number: expenseNumber,
         vendor_name: formData.vendor_name.trim(),
-        category: formData.category,
+        category: finalCategory,
         amount: parseFloat(formData.amount),
         expense_date: formData.expense_date,
         description: formData.description?.trim() || null,
@@ -173,6 +177,8 @@ const ExpenseRecording = ({ onExpenseRecorded }: ExpenseRecordingProps) => {
         payment_method: "cash",
         notes: ""
       });
+      setCustomCategory("");
+      setIsCustomCategory(false);
 
       // Notify parent component
       onExpenseRecorded?.();
@@ -228,7 +234,13 @@ const ExpenseRecording = ({ onExpenseRecorded }: ExpenseRecordingProps) => {
               </Label>
               <Select
                 value={formData.category}
-                onValueChange={(value) => handleInputChange("category", value)}
+                onValueChange={(value) => {
+                  handleInputChange("category", value);
+                  setIsCustomCategory(value === "Other");
+                  if (value !== "Other") {
+                    setCustomCategory("");
+                  }
+                }}
               >
                 <SelectTrigger className={errors.category ? "border-red-500" : ""}>
                   <SelectValue placeholder="Select category" />
@@ -241,6 +253,14 @@ const ExpenseRecording = ({ onExpenseRecorded }: ExpenseRecordingProps) => {
                   ))}
                 </SelectContent>
               </Select>
+              {isCustomCategory && (
+                <Input
+                  placeholder="Enter custom category"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  className={errors.category ? "border-red-500" : ""}
+                />
+              )}
               {errors.category && (
                 <p className="text-sm text-red-600">{errors.category}</p>
               )}
