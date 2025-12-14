@@ -153,14 +153,52 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Get product details with latest receipt info
       const { data, error } = await supabase
         .from('user_products')
-        .select('product_name, selling_price, unit_of_measure')
+        .select(`
+          product_name, 
+          selling_price,
+          cost_price,
+          local_unit,
+          international_unit,
+          category
+        `)
         .eq('user_id', user.id)
         .order('product_name');
 
       if (!error && data) {
-        setExistingProducts(data);
+        // For each product, also fetch the latest receipt for cost price and supplier
+        const productsWithDetails = await Promise.all(
+          data.map(async (product) => {
+            // Use maybeSingle() instead of single() to avoid errors when no receipt exists
+            const { data: latestReceipt, error: receiptError } = await supabase
+              .from('inventory_receipts')
+              .select('unit_cost, supplier_id, local_unit, international_unit, quantity_received')
+              .eq('user_id', user.id)
+              .ilike('product_name', product.product_name)
+              .order('received_date', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (receiptError) {
+              console.error(`Error fetching receipt for ${product.product_name}:`, receiptError);
+            }
+
+            return {
+              ...product,
+              // Use receipt cost price first, fallback to product cost price
+              cost_price: latestReceipt?.unit_cost || product.cost_price || null,
+              supplier_id: latestReceipt?.supplier_id || null,
+              receipt_local_unit: latestReceipt?.local_unit || null,
+              receipt_international_unit: latestReceipt?.international_unit || null,
+              last_quantity: latestReceipt?.quantity_received || null,
+            };
+          })
+        );
+
+        setExistingProducts(productsWithDetails);
+        console.log('Loaded products with details:', productsWithDetails);
       }
     } catch (error) {
       console.error('Error fetching existing products:', error);
@@ -201,6 +239,83 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
       await fetchPopularCommodities();
     } catch (error) {
       console.error('Error updating popular commodity:', error);
+    }
+  };
+
+  const autoFillProductDetails = (productName: string) => {
+    const existing = existingProducts.find(
+      p => p.product_name.toLowerCase() === productName.toLowerCase()
+    );
+
+    console.log('Auto-filling for:', productName);
+    console.log('Found existing product:', existing);
+
+    if (existing) {
+      // Auto-fill selling price - ensure proper number formatting
+      if (existing.selling_price) {
+        const sellingPriceValue = Number(existing.selling_price);
+        console.log('Setting selling price:', sellingPriceValue);
+        // Use the exact value without rounding if it's a whole number
+        setSellingPrice(sellingPriceValue.toString());
+      }
+
+      // Auto-fill cost price - only set unitCost if there was a supplier (from receipt)
+      if (existing.cost_price) {
+        const costPriceValue = Number(existing.cost_price);
+        console.log('Setting cost price:', costPriceValue);
+        // Always set the general cost price field
+        setCostPrice(costPriceValue.toString());
+
+        // Only set unit cost if this came from a receipt with supplier
+        // (receipt_unit_cost would be different from product cost_price if from receipt)
+        const receiptHadSupplier = existing.supplier_id !== null && existing.supplier_id !== undefined;
+        if (receiptHadSupplier) {
+          console.log('Setting unit cost (from supplier receipt):', costPriceValue);
+          setUnitCost(costPriceValue.toString());
+        }
+      } else {
+        console.log('No cost price found for this product');
+      }
+
+      // Auto-fill last quantity as suggestion
+      if (existing.last_quantity) {
+        console.log('Setting last quantity:', existing.last_quantity);
+        setQuantity(existing.last_quantity.toString());
+      }
+
+      // Auto-fill units (prefer from receipt, fallback to product)
+      const localUnitToUse = existing.receipt_local_unit || existing.local_unit;
+      const intUnitToUse = existing.receipt_international_unit || existing.international_unit;
+
+      if (localUnitToUse) {
+        console.log('Setting local unit:', localUnitToUse);
+        setLocalUnit(localUnitToUse);
+        setIsCustomLocalUnit(false);
+      }
+
+      if (intUnitToUse) {
+        console.log('Setting international unit:', intUnitToUse);
+        setInternationalUnit(intUnitToUse);
+      }
+
+      // Auto-fill category
+      if (existing.category) {
+        console.log('Setting category:', existing.category);
+        setSelectedCategory(existing.category);
+      }
+
+      // Auto-fill supplier from latest receipt
+      if (existing.supplier_id) {
+        console.log('Setting supplier:', existing.supplier_id);
+        setSelectedSupplier(existing.supplier_id);
+      }
+
+      toast({
+        title: "Product Details Auto-filled",
+        description: `Loaded previous details for ${productName}. You can edit any field before submitting.`,
+      });
+    } else {
+      console.log('No existing product found for:', productName);
     }
   };
 
@@ -519,15 +634,22 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
         .single();
 
       if (existingProduct) {
-        // Update existing product - include selling price and unit
+        // Update existing product - include selling price, units, and category
         const updateData: any = {
           current_stock: (existingProduct.current_stock || 0) + quantityNum,
           updated_at: new Date().toISOString()
         };
 
+        // Update cost price if provided
+        if (costPrice && parseFloat(costPrice) > 0) {
+          // Round to 2 decimal places to avoid floating point precision issues
+          updateData.cost_price = Math.round(parseFloat(costPrice) * 100) / 100;
+        }
+
         // Only update selling price if provided
         if (sellingPrice && parseFloat(sellingPrice) > 0) {
-          updateData.selling_price = parseFloat(sellingPrice);
+          // Round to 2 decimal places to avoid floating point precision issues
+          updateData.selling_price = Math.round(parseFloat(sellingPrice) * 100) / 100;
         }
 
         // Update units
@@ -538,21 +660,33 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           updateData.international_unit = internationalUnit;
         }
 
+        // Update category
+        if (selectedCategory) {
+          updateData.category = selectedCategory;
+        }
+
         await supabase
           .from('user_products')
           .update(updateData)
           .eq('id', existingProduct.id);
       } else {
-        // Create new product - include selling price and units
+        // Create new product - include selling price, units, and category
         const insertData: any = {
           user_id: userId,
           product_name: finalProductName.trim(),
           current_stock: quantityNum
         };
 
+        // Add cost price if provided
+        if (costPrice && parseFloat(costPrice) > 0) {
+          // Round to 2 decimal places to avoid floating point precision issues
+          insertData.cost_price = Math.round(parseFloat(costPrice) * 100) / 100;
+        }
+
         // Only add selling price if provided
         if (sellingPrice && parseFloat(sellingPrice) > 0) {
-          insertData.selling_price = parseFloat(sellingPrice);
+          // Round to 2 decimal places to avoid floating point precision issues
+          insertData.selling_price = Math.round(parseFloat(sellingPrice) * 100) / 100;
         }
 
         // Add units if provided
@@ -563,14 +697,19 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           insertData.international_unit = internationalUnit;
         }
 
+        // Add category if provided
+        if (selectedCategory) {
+          insertData.category = selectedCategory;
+        }
+
         await supabase
           .from('user_products')
           .insert(insertData);
       }
 
-      // Create inventory receipt if supplier info is provided OR if recording as expense
+      // Create inventory receipt if supplier info is provided OR if recording as expense OR if cost price is provided
       let receiptId = null;
-      if (selectedSupplier || (recordAsExpense && totalCost > 0)) {
+      if (selectedSupplier || (recordAsExpense && totalCost > 0) || (unitCostNum > 0)) {
         const receiptInsert: any = {
           user_id: userId,
           supplier_id: selectedSupplier || null,
@@ -863,7 +1002,13 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           {/* Product Name */}
           <div className="space-y-2">
             <Label htmlFor="product-name">Product Name</Label>
-            <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+            <Select value={selectedProduct} onValueChange={(value) => {
+              setSelectedProduct(value);
+              // Auto-fill if not custom
+              if (value !== 'custom' && value !== '') {
+                autoFillProductDetails(value);
+              }
+            }}>
               <SelectTrigger>
                 <SelectValue placeholder="Choose from popular items or type custom name" />
               </SelectTrigger>
@@ -882,37 +1027,23 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
                   const value = e.target.value;
                   setProductName(value);
 
-                  // Autofill from existing products
+                  // Auto-fill from existing products when exact match
                   const existing = existingProducts.find(
                     p => p.product_name.toLowerCase() === value.toLowerCase()
                   );
                   if (existing) {
-                    if (existing.selling_price) {
-                      setSellingPrice(existing.selling_price.toString());
-                    }
-                    if (existing.local_unit) {
-                      setLocalUnit(existing.local_unit);
-                    }
-                    if (existing.international_unit) {
-                      setInternationalUnit(existing.international_unit);
-                    }
+                    autoFillProductDetails(value);
                   }
                 }}
                 onBlur={(e) => {
-                  // Also check on blur for better UX
-                  const value = e.target.value;
-                  const existing = existingProducts.find(
-                    p => p.product_name.toLowerCase() === value.toLowerCase()
-                  );
-                  if (existing) {
-                    if (existing.selling_price && !sellingPrice) {
-                      setSellingPrice(existing.selling_price.toString());
-                    }
-                    if (existing.local_unit && !localUnit) {
-                      setLocalUnit(existing.local_unit);
-                    }
-                    if (existing.international_unit && !internationalUnit) {
-                      setInternationalUnit(existing.international_unit);
+                  // Auto-fill on blur if matching product found
+                  const value = e.target.value.trim();
+                  if (value) {
+                    const existing = existingProducts.find(
+                      p => p.product_name.toLowerCase() === value.toLowerCase()
+                    );
+                    if (existing) {
+                      autoFillProductDetails(value);
                     }
                   }
                 }}
