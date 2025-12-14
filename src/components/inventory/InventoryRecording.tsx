@@ -88,13 +88,12 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
   const [newSingleItemGroupName, setNewSingleItemGroupName] = useState("");
   const [newSingleItemGroupDescription, setNewSingleItemGroupDescription] = useState("");
   const [existingProducts, setExistingProducts] = useState<any[]>([]);
+  const [popularCommodities, setPopularCommodities] = useState<string[]>([
+    "Rice", "Beans", "Gari", "Tomatoes", "Onions", "Pepper", "Fish", "Chicken",
+    "Beef", "Plantain"
+  ]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  const popularCommodities = [
-    "Rice", "Beans", "Gari", "Tomatoes", "Onions", "Pepper", "Fish", "Chicken",
-    "Beef", "Plantain", "Yam", "Cassava", "Maize", "Groundnuts", "Palm Oil"
-  ];
 
   const internationalUnits = ["kg", "g", "liters", "ml", "pieces", "meters", "cm"];
 
@@ -115,6 +114,7 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
     fetchSuppliers();
     fetchInventoryGroups();
     fetchExistingProducts();
+    fetchPopularCommodities();
   }, []);
 
   useEffect(() => {
@@ -164,6 +164,43 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
       }
     } catch (error) {
       console.error('Error fetching existing products:', error);
+    }
+  };
+
+  const fetchPopularCommodities = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('user_popular_commodities')
+        .select('product_name')
+        .eq('user_id', user.id)
+        .order('last_used_at', { ascending: false })
+        .limit(10);
+
+      if (!error && data && data.length > 0) {
+        setPopularCommodities(data.map(item => item.product_name));
+      }
+    } catch (error) {
+      console.error('Error fetching popular commodities:', error);
+    }
+  };
+
+  const updatePopularCommodity = async (productName: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase.rpc('upsert_popular_commodity', {
+        p_user_id: user.id,
+        p_product_name: productName
+      });
+
+      // Refresh the popular commodities list
+      await fetchPopularCommodities();
+    } catch (error) {
+      console.error('Error updating popular commodity:', error);
     }
   };
 
@@ -410,6 +447,11 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
         queryClient.invalidateQueries({ queryKey: homeMetricsQueryKey(userId) })
       ]);
 
+      // Update popular commodities for all bulk items
+      for (const item of bulkItems) {
+        await updatePopularCommodity(item.productName);
+      }
+
       if (errorCount === 0) {
         toast({
           title: "🎉 Bulk Inventory Added Successfully!",
@@ -624,6 +666,11 @@ const InventoryRecording = ({ selectedGroup, onGroupCleared }: InventoryRecordin
           ? `Added ${quantity} ${finalProductName} to inventory and recorded as expense. Keep growing your business!`
           : `Added ${quantity} ${finalProductName} to inventory. Keep growing your business!`,
       });
+
+      // Update popular commodities list if this is a custom product or new product
+      if (selectedProduct === 'custom' || productName) {
+        await updatePopularCommodity(finalProductName);
+      }
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: inventoryOverviewQueryKey(userId) }),
