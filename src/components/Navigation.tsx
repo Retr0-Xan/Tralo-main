@@ -8,7 +8,7 @@ const Navigation = () => {
   const [activeTab, setActiveTab] = useState("home");
 
   const navItems = [
-    { id: "home", label: "Homepage", icon: Home, path: "/" },
+    { id: "home", label: "Homepage", icon: Home, path: "/dashboard" },
     { id: "inventory", label: "Inventory", icon: Package, path: "/inventory" },
     { id: "sales", label: "Sales", icon: Receipt, path: "/sales" },
     { id: "trade-index", label: "Trade Index", icon: TrendingUp, path: "/trade-index" },
@@ -31,11 +31,10 @@ const Navigation = () => {
               <button
                 key={item.id}
                 onClick={() => handleNavigation(item)}
-                className={`flex flex-col items-center py-2 px-3 rounded-lg transition-all duration-300 ${
-                  isActive
+                className={`flex flex-col items-center py-2 px-3 rounded-lg transition-all duration-300 ${isActive
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
+                  }`}
               >
                 <Icon className="w-6 h-6 mb-1" />
                 <span className="text-xs font-medium">{item.label}</span>

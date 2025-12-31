@@ -117,7 +117,7 @@ const Auth = () => {
             ? "You've successfully signed in with Google."
             : "You've successfully signed in.",
         });
-        navigate("/");
+        navigate("/dashboard");
       }
     };
 
@@ -147,7 +147,7 @@ const Auth = () => {
           title: "Welcome! 👋",
           description: "You've successfully signed in.",
         });
-        navigate("/");
+        navigate("/dashboard");
       }
     });
 
@@ -203,7 +203,7 @@ const Auth = () => {
           title: "Welcome Back!",
           description: "You have been successfully signed in.",
         });
-        navigate("/");
+        navigate("/dashboard");
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -282,7 +282,7 @@ const Auth = () => {
           title: "Account Created Successfully! 🎉",
           description: "Welcome to Tralo! You can now start managing your business.",
         });
-        navigate("/");
+        navigate("/dashboard");
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
