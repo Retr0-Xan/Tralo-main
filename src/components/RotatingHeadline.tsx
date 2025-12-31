@@ -49,7 +49,7 @@ const RotatingHeadline = ({ onComplete, speed = 45 }: RotatingHeadlineProps) => 
 
     const timeout = setTimeout(() => {
       setIsErasing(true);
-    }, 4000);
+    }, 1000);
 
     return () => clearTimeout(timeout);
   }, [isTyping, isErasing]);
