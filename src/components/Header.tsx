@@ -12,14 +12,12 @@ const Header = () => {
           <span className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
             Ghana <span className="text-base">🇬🇭</span>
           </span>
-          <a
-            href="https://tralo.vercel.app/"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            to="/auth"
             className="text-foreground font-semibold hover:opacity-70 transition-opacity text-sm md:text-base"
           >
             Login
-          </a>
+          </Link>
         </div>
       </div>
     </header>
