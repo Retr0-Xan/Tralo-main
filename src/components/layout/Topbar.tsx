@@ -31,7 +31,7 @@ interface TopbarProps {
 const buildBreadcrumbs = (pathname: string) => {
     const segments = pathname.split("/").filter(Boolean);
     const crumbs = [
-        { label: "Home", path: "/" },
+        { label: "Home", path: "/dashboard" },
     ];
 
     if (segments.length === 0) {

@@ -29,7 +29,7 @@ type NavItem = {
 };
 
 const primaryNav: NavItem[] = [
-    { label: "Dashboard", path: "/", icon: LayoutDashboard },
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { label: "Inventory", path: "/inventory", icon: Boxes },
     { label: "Sales", path: "/sales", icon: Receipt },
     { label: "Expenses", path: "/expenses", icon: DollarSign },
@@ -46,7 +46,7 @@ export const SidebarNav = ({ isMobileOpen, onClose }: SidebarNavProps) => {
     const navigate = useNavigate();
 
     const handleLogoClick = () => {
-        navigate("/");
+        navigate("/dashboard");
         onClose();
     };
 
