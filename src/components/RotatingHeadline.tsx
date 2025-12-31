@@ -18,13 +18,14 @@ const RotatingHeadline = ({ onComplete, speed = 45 }: RotatingHeadlineProps) => 
   const [displayedText, setDisplayedText] = useState("");
   const [charIndex, setCharIndex] = useState(0);
   const [isTyping, setIsTyping] = useState(true);
+  const [isErasing, setIsErasing] = useState(false);
   const [hasCalledComplete, setHasCalledComplete] = useState(false);
 
   const currentHeadline = headlines[currentIndex];
 
   // Typewriter effect
   useEffect(() => {
-    if (!isTyping) return;
+    if (!isTyping || isErasing) return;
 
     if (charIndex < currentHeadline.length) {
       const timeout = setTimeout(() => {
@@ -40,21 +41,36 @@ const RotatingHeadline = ({ onComplete, speed = 45 }: RotatingHeadlineProps) => 
       }
       setIsTyping(false);
     }
-  }, [charIndex, currentHeadline, speed, isTyping, onComplete, hasCalledComplete]);
+  }, [charIndex, currentHeadline, speed, isTyping, isErasing, onComplete, hasCalledComplete]);
 
-  // Rotate to next headline after pause
+  // Start erasing after pause
   useEffect(() => {
-    if (isTyping) return;
+    if (isTyping || isErasing) return;
 
     const timeout = setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % headlines.length);
-      setDisplayedText("");
-      setCharIndex(0);
-      setIsTyping(true);
+      setIsErasing(true);
     }, 4000);
 
     return () => clearTimeout(timeout);
-  }, [isTyping]);
+  }, [isTyping, isErasing]);
+
+  // Erasing effect
+  useEffect(() => {
+    if (!isErasing) return;
+
+    if (displayedText.length > 0) {
+      const timeout = setTimeout(() => {
+        setDisplayedText(prev => prev.slice(0, -1));
+      }, speed * 0.5); // Erase faster than typing
+      return () => clearTimeout(timeout);
+    } else {
+      // Finished erasing, move to next headline
+      setIsErasing(false);
+      setCurrentIndex((prev) => (prev + 1) % headlines.length);
+      setCharIndex(0);
+      setIsTyping(true);
+    }
+  }, [displayedText, isErasing, speed]);
 
   // Process text to handle line breaks
   const processedText = displayedText.split('\n').map((line, index, arr) => (
