@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import ForgotPassword from "./pages/ForgotPassword";
 import ConfirmEmail from "./pages/ConfirmEmail";
-import Index from "./pages/Index";
+import Index from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -23,6 +23,8 @@ import Documents from "./pages/Documents";
 import Profile from "./pages/Profile";
 import Reminders from "./pages/Reminders";
 import CompleteProfile from "./pages/CompleteProfile";
+import Landing from "./pages/Landing";
+import Dashboard from "./pages/Dashboard";
 
 const ProtectedLayout = () => {
   const { user, loading } = useAuth();
@@ -95,6 +97,8 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
+
+              <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/complete-profile" element={<CompleteProfile />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -102,7 +106,7 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
 
               <Route element={<ProtectedLayout />}>
-                <Route path="/" element={<Index />} />
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/inventory" element={<Inventory />} />
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/expenses" element={<Expenses />} />
