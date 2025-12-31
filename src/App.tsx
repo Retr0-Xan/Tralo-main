@@ -25,6 +25,10 @@ import Reminders from "./pages/Reminders";
 import CompleteProfile from "./pages/CompleteProfile";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
+import About from "./pages/About";
+import Help from "./pages/Help";
+import Contact from "./pages/Contact";
+import Privacy from "./pages/Privacy";
 
 const ProtectedLayout = () => {
   const { user, loading } = useAuth();
@@ -104,6 +108,10 @@ const App = () => (
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/confirm-email" element={<ConfirmEmail />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/help" element={<Help />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/privacy" element={<Privacy />} />
 
               <Route element={<ProtectedLayout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
