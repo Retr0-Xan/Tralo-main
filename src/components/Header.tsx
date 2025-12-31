@@ -3,13 +3,13 @@ import logoDark from "@/assets/tralo-logo-dark-mode-removebg-preview.png";
 
 const Header = () => {
   return (
-    <header className="w-full pt-5 pb-4 md:pt-8 md:pb-6 px-6 md:px-12 lg:px-16 bg-primary">
+    <header className="sticky top-0 z-50 w-full py-3 md:py-4 px-6 md:px-12 lg:px-16 bg-primary">
       <div className="max-w-[1150px] mx-auto flex items-center justify-between">
         <Link to="/" className="flex items-center">
           <img
             src={logoDark}
             alt="Tralo"
-            className="h-6 md:h-7 w-auto object-contain"
+            className="h-[35px] md:h-[41px] w-auto object-contain"
           />
         </Link>
         <div className="flex items-center gap-4 md:gap-5">
