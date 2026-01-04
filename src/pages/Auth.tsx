@@ -199,12 +199,13 @@ const Auth = () => {
         return;
       }
 
-      if (data.user) {
+      if (data.user && data.session) {
+        // Don't navigate here - let the onAuthStateChange handler do it
+        // This ensures the auth state is fully propagated first
         toast({
           title: "Welcome Back!",
           description: "You have been successfully signed in.",
         });
-        navigate("/dashboard");
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
