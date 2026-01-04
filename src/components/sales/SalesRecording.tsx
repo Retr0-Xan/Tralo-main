@@ -620,33 +620,22 @@ const SalesRecording = () => {
 
   if (currentStep === 1) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-primary" />
-            Record New Sale
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {salesItems.length > 0 && (
-            <Button
-              onClick={() => setCurrentStep(2)}
-              className="w-full mb-4"
-            >
-              Continue to Customer Details ({salesItems.length} item{salesItems.length > 1 ? 's' : ''})
-            </Button>
-          )}
-
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Left Column: Add Product Form */}
+        <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Add Product to Sale</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Plus className="w-5 h-5 text-primary" />
+                Add Products to Sale
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="product">Product</Label>
+                <Label htmlFor="product">Select Product</Label>
                 <Select value={isCustomProduct ? "custom" : selectedProduct} onValueChange={handleProductSelect}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select from stock or choose custom" />
+                    <SelectValue placeholder="Choose from inventory or enter custom" />
                   </SelectTrigger>
                   <SelectContent>
                     {inventoryProducts.map((product) => (
@@ -667,7 +656,7 @@ const SalesRecording = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="quantity">Quantity</Label>
                   <Input
@@ -682,7 +671,7 @@ const SalesRecording = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="unitPrice">Unit Selling Price (¢)</Label>
+                  <Label htmlFor="unitPrice">Unit Price (¢)</Label>
                   <Input
                     id="unitPrice"
                     type="number"
@@ -694,11 +683,6 @@ const SalesRecording = () => {
                       setUnitPrice(value === '' ? '' : parseFloat(value) || 0);
                     }}
                   />
-                  {!isCustomProduct && selectedProduct && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Default from inventory - editable
-                    </p>
-                  )}
                 </div>
                 <div>
                   <Label htmlFor="discount">Discount (¢)</Label>
@@ -716,29 +700,170 @@ const SalesRecording = () => {
                 </div>
               </div>
 
-              {/* Total Value Display */}
+              {/* Item Total Preview */}
               {(() => {
                 const qtyNum = typeof quantity === 'string' ? parseFloat(quantity) || 0 : quantity;
                 const priceNum = typeof unitPrice === 'string' ? parseFloat(unitPrice) || 0 : unitPrice;
                 const discNum = typeof discount === 'string' ? parseFloat(discount) || 0 : discount;
+                const itemTotal = (qtyNum * priceNum) - discNum;
 
                 return (qtyNum > 0 && priceNum > 0) && (
-                  <div className="bg-primary/10 p-4 rounded-lg border border-primary/20">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground mb-1">Total Sale Value</p>
-                      <p className="text-2xl font-bold text-primary">
-                        ¢{((qtyNum * priceNum) - discNum).toFixed(2)}
-                      </p>
-                      {discNum > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Subtotal: ¢{(qtyNum * priceNum).toFixed(2)} - Discount: ¢{discNum.toFixed(2)}
-                        </p>
-                      )}
+                  <div className="bg-primary/10 p-3 rounded-lg border border-primary/20">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Item Total:</span>
+                      <span className="text-xl font-bold text-primary">¢{itemTotal.toFixed(2)}</span>
                     </div>
                   </div>
                 );
               })()}
 
+              <Button onClick={addProductToSale} className="w-full" size="lg">
+                <Plus className="w-4 h-4 mr-2" />
+                Add to Cart
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column: Cart Summary */}
+        <div className="lg:col-span-1">
+          <Card className="sticky top-20">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5 text-primary" />
+                  Cart
+                </span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {salesItems.length} {salesItems.length === 1 ? 'item' : 'items'}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {salesItems.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <ShoppingCart className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No items in cart</p>
+                  <p className="text-sm">Add products to begin</p>
+                </div>
+              ) : (
+                <>
+                  {/* Cart Items */}
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {salesItems.map((item) => (
+                      <div key={item.id} className="p-3 border rounded-lg bg-background hover:border-primary/50 transition-colors">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{item.productName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.quantity} × ¢{item.unitPrice.toFixed(2)}
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeProductFromSale(item.id)}
+                            className="h-7 w-7 p-0"
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          {item.discount > 0 && (
+                            <span className="text-xs text-muted-foreground">-¢{item.discount.toFixed(2)} discount</span>
+                          )}
+                          <span className="font-semibold text-sm ml-auto">¢{item.total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Cart Totals */}
+                  <div className="pt-4 border-t space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Subtotal:</span>
+                      <span className="font-medium">¢{calculateSubtotal().toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>Total:</span>
+                      <span className="text-primary">¢{calculateSubtotal().toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Checkout Button */}
+                  <Button
+                    onClick={() => setCurrentStep(2)}
+                    className="w-full"
+                    size="lg"
+                  >
+                    <Receipt className="w-4 h-4 mr-2" />
+                    Proceed to Checkout
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Step 2: Checkout - Customer Details and Payment
+  return (
+    <div className="max-w-4xl mx-auto">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Receipt className="w-5 h-5 text-primary" />
+            Checkout - Complete Sale
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Customer Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Customer Information (Optional)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="customerName">Customer Name</Label>
+                  <Input
+                    id="customerName"
+                    placeholder="Enter customer's name"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="customerPhone">Customer Phone</Label>
+                  <Input
+                    id="customerPhone"
+                    placeholder="Enter phone number"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="notes">Additional Notes</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Any special notes about this sale..."
+                  value={additionalNotes}
+                  onChange={(e) => setAdditionalNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Payment Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Payment Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="paymentMethod">Payment Method</Label>
@@ -748,9 +873,9 @@ const SalesRecording = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="credit">Credit</SelectItem>
                       <SelectItem value="mobile money">Mobile Money</SelectItem>
                       <SelectItem value="bank transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="credit">Credit (Pay Later)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -777,6 +902,7 @@ const SalesRecording = () => {
                     type="number"
                     min="0"
                     step="0.01"
+                    placeholder="Amount paid"
                     value={partialPaymentAmount}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -785,189 +911,93 @@ const SalesRecording = () => {
                   />
                 </div>
               )}
+            </CardContent>
+          </Card>
 
-              <div>
-                <Label htmlFor="notes">Additional Notes (Optional)</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Any additional notes about this sale..."
-                  value={additionalNotes}
-                  onChange={(e) => setAdditionalNotes(e.target.value)}
+          {/* Tax Options */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="applyTaxes"
+                  checked={applyTaxes}
+                  onCheckedChange={(checked) => setApplyTaxes(!!checked)}
                 />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button onClick={addProductToSale} className="w-full">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Product to Sale
-                </Button>
-                <Button
-                  onClick={() => setCurrentStep(2)}
-                  variant="outline"
-                  className="w-full"
-                  disabled={salesItems.length === 0}
-                >
-                  <ShoppingCart className="w-4 h-4 mr-2" />
-                  Proceed to Customer Details
-                </Button>
+                <Label htmlFor="applyTaxes" className="cursor-pointer font-medium">
+                  Apply Taxes (21% - VAT 15%, NHIL 2.5%, GETFund 2.5%, COVID-19 1%)
+                </Label>
               </div>
             </CardContent>
           </Card>
 
-          {salesItems.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Sale Items</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {salesItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex-1">
-                        <div className="font-medium">{item.productName}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {item.quantity} × ¢{item.unitPrice.toFixed(2)}
-                          {item.discount > 0 && ` - ¢${item.discount.toFixed(2)} discount`}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">¢{item.total.toFixed(2)}</span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeProductFromSale(item.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total Amount:</span>
-                    <span>¢{calculateSubtotal().toFixed(2)}</span>
+          {/* Order Summary */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-lg">Order Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Items List */}
+              <div className="space-y-2">
+                {salesItems.map((item) => (
+                  <div key={item.id} className="flex justify-between text-sm py-1">
+                    <span className="text-muted-foreground">
+                      {item.productName} × {item.quantity}
+                    </span>
+                    <span className="font-medium">¢{item.total.toFixed(2)}</span>
                   </div>
+                ))}
+              </div>
+
+              <div className="border-t pt-3 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Subtotal:</span>
+                  <span className="font-medium">¢{calculateSubtotal().toFixed(2)}</span>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                {applyTaxes && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Taxes (21%):</span>
+                    <span className="font-medium">¢{calculateTotalTaxes().toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-xl font-bold border-t pt-2">
+                  <span>Total:</span>
+                  <span className="text-primary">¢{calculateGrandTotal().toFixed(2)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setCurrentStep(1)}
+              className="flex-1"
+              disabled={loading}
+            >
+              Back to Cart
+            </Button>
+            <Button
+              onClick={saveSaleOnly}
+              disabled={loading}
+              variant="secondary"
+              className="flex-1"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {loading ? "Saving..." : "Save Sale"}
+            </Button>
+            <Button
+              onClick={generateAndDownloadReceipt}
+              disabled={loading}
+              className="flex-1"
+            >
+              <Receipt className="w-4 h-4 mr-2" />
+              {loading ? "Processing..." : "Complete & Get Receipt"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShoppingCart className="w-5 h-5 text-primary" />
-          Customer Details
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="customerName">Customer Name (Optional)</Label>
-            <Input
-              id="customerName"
-              placeholder="Customer's name"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="customerPhone">Customer Phone (Optional)</Label>
-            <Input
-              id="customerPhone"
-              placeholder="Customer's phone number"
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="applyTaxes"
-              checked={applyTaxes}
-              onCheckedChange={(checked) => setApplyTaxes(!!checked)}
-            />
-            <Label htmlFor="applyTaxes" className="cursor-pointer font-semibold">
-              Apply Taxes (21% - VAT 15%, NHIL 2.5%, GETFund 2.5%, COVID-19 1%)
-            </Label>
-          </div>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Sale Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {salesItems.map((item) => (
-              <div key={item.id} className="flex justify-between py-1">
-                <span>Product: </span>
-                <span>{item.productName}</span>
-              </div>
-            ))}
-            <div className="flex justify-between py-1">
-              <span>Quantity: </span>
-              <span>{salesItems.reduce((sum, item) => sum + item.quantity, 0)}</span>
-            </div>
-            <div className="flex justify-between py-1">
-              <span>Subtotal: </span>
-              <span>¢{calculateSubtotal().toFixed(2)}</span>
-            </div>
-            {applyTaxes && (
-              <div className="flex justify-between py-1 font-semibold">
-                <span>Taxes (21%): </span>
-                <span>¢{calculateTotalTaxes().toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between py-1 font-bold text-lg border-t pt-2">
-              <span>Total: </span>
-              <span>¢{calculateGrandTotal().toFixed(2)}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex gap-4">
-          <Button
-            variant="outline"
-            onClick={() => setCurrentStep(1)}
-            className="flex-1"
-          >
-            Back
-          </Button>
-          <Button
-            onClick={saveSaleOnly}
-            disabled={loading}
-            variant="outline"
-            className="flex-1"
-          >
-            <Save className="w-4 h-4 mr-2" />
-            {loading ? "Saving..." : "Save Sale Only"}
-          </Button>
-          <Button
-            onClick={generateAndDownloadReceipt}
-            disabled={loading}
-            className="flex-1"
-          >
-            <Receipt className="w-4 h-4 mr-2" />
-            {loading ? "Saving..." : "Generate & Download Receipt"}
-          </Button>
-        </div>
-
-        <Button
-          onClick={() => setCurrentStep(1)}
-          variant="secondary"
-          className="w-full"
-        >
-          Review Sale Details
-        </Button>
-      </CardContent>
-    </Card>
+    </div>
   );
 };
 
