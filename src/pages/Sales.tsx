@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Receipt, BarChart3, FileText, Users, Layers, LineChart, Clock, CalendarClock } from "lucide-react";
+import { Receipt, BarChart3, FileText, Users, Layers, LineChart, Clock, CalendarClock, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -12,10 +12,11 @@ import SaleReversalDialog from "@/components/sales/SaleReversalDialog";
 import ClientValueRatioDisplay from "@/components/sales/ClientValueRatioDisplay";
 import SalesHistory from "@/components/sales/SalesHistory";
 import PastSalesRecording from "@/components/documents/PastSalesRecording";
+import CreditManagement from "@/components/sales/CreditManagement";
 
 
 const Sales = () => {
-  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "summary" | "customers" | "history" | "past-sales">("recording");
+  const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "summary" | "customers" | "history" | "past-sales" | "credit">("recording");
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
@@ -37,7 +38,7 @@ const Sales = () => {
       />
 
       <Card className="rounded-2xl border border-border/70">
-        <div className="grid gap-2 border-b border-border/60 bg-muted/30 p-2 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid gap-2 border-b border-border/60 bg-muted/30 p-2 md:grid-cols-3 lg:grid-cols-7">
           <Button
             size="sm"
             variant={activeTab === "recording" ? "default" : "ghost"}
@@ -58,12 +59,21 @@ const Sales = () => {
           </Button>
           <Button
             size="sm"
+            variant={activeTab === "credit" ? "default" : "ghost"}
+            onClick={() => setActiveTab("credit")}
+            className="rounded-xl px-4 py-2"
+          >
+            <CreditCard className="mr-2 h-4 w-4" />
+            Credit & Partial
+          </Button>
+          <Button
+            size="sm"
             variant={activeTab === "dashboard" ? "default" : "ghost"}
             onClick={() => setActiveTab("dashboard")}
             className="rounded-xl px-4 py-2"
           >
             <BarChart3 className="mr-2 h-4 w-4" />
-            Sales Dashboard
+            Dashboard
           </Button>
           <Button
             size="sm"
@@ -72,7 +82,7 @@ const Sales = () => {
             className="rounded-xl px-4 py-2"
           >
             <Clock className="mr-2 h-4 w-4" />
-            Sales History
+            History
           </Button>
           <Button
             size="sm"
@@ -90,7 +100,7 @@ const Sales = () => {
             className="rounded-xl px-4 py-2"
           >
             <Users className="mr-2 h-4 w-4" />
-            Customer Tracking
+            Customers
           </Button>
         </div>
         <CardContent className="px-4 py-6 md:px-6">
@@ -136,6 +146,7 @@ const Sales = () => {
               </div>
             </div>
           )}
+          {activeTab === "credit" && <CreditManagement />}
         </CardContent>
       </Card>
 

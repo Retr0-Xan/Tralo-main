@@ -194,7 +194,7 @@ const SalesRecording = () => {
     await processSale(true);
   };
 
-  const processSale = async (generateReceipt: boolean) => {
+  const processSale = async (generateDocument: boolean) => {
     console.log('=== STARTING SALE PROCESS ===');
     console.log('Sales Items:', salesItems);
     console.log('Business Profile:', businessProfile);
@@ -357,6 +357,21 @@ const SalesRecording = () => {
             getfund_amount: itemGETFund,
             covid19_amount: itemCovid19,
             total_tax: itemTotalTax,
+            amount_paid: paymentStatus === 'paid_in_full' ? item.total : (partialPaymentAmount || 0),
+            payment_status: paymentStatus,
+            payment_history: paymentStatus === 'paid_in_full'
+              ? [{
+                amount: item.total,
+                date: saleTimestamp,
+                payment_method: resolvedPaymentMethod,
+              }]
+              : (partialPaymentAmount && partialPaymentAmount > 0)
+                ? [{
+                  amount: partialPaymentAmount,
+                  date: saleTimestamp,
+                  payment_method: resolvedPaymentMethod,
+                }]
+                : [],
           })
           .select('id')
           .single();
@@ -371,6 +386,7 @@ const SalesRecording = () => {
         // Record detailed customer sale if customer info provided
         if (customerId) {
           console.log('Recording customer sale for customer ID:', customerId);
+
           const { error: saleError } = await supabase
             .from('customer_sales')
             .insert({
@@ -405,8 +421,14 @@ const SalesRecording = () => {
 
       console.log('All items processed successfully');
 
-      if (generateReceipt) {
-        console.log('Generating receipt...');
+      // Determine document type based on payment status
+      const documentType = paymentStatus === 'paid_in_full' ? 'receipt' : 'invoice';
+      const documentTitle = paymentStatus === 'paid_in_full' ? 'Receipt' :
+        paymentStatus === 'credit' ? 'Invoice (Credit Sale)' :
+          'Invoice (Partial Payment)';
+
+      if (generateDocument) {
+        console.log(`Generating ${documentType}...`);
 
         // Fetch unit information for each item from inventory
         const itemsWithUnits = await Promise.all(salesItems.map(async (item) => {
@@ -479,9 +501,11 @@ const SalesRecording = () => {
           });
         }
 
-        // Also save receipt record in database
-        console.log('Saving receipt to documents table...');
-        const receiptContent = {
+        // Also save document record in database
+        console.log(`Saving ${documentType} to documents table...`);
+        const partialPaymentNum = typeof partialPaymentAmount === 'string' ? parseFloat(partialPaymentAmount) : partialPaymentAmount;
+
+        const documentContent = {
           items: salesItems.map(item => ({
             productName: item.productName,
             quantity: item.quantity,
@@ -496,23 +520,29 @@ const SalesRecording = () => {
           customer: { name: customerName, phone: customerPhone },
           paymentMethod,
           paymentStatus,
-          partialPayment: paymentStatus === 'partial_payment' ? partialPaymentAmount : null,
+          amountPaid: paymentStatus === 'paid_in_full' ? grandTotal :
+            paymentStatus === 'partial_payment' ? partialPaymentNum : 0,
+          remainingBalance: paymentStatus === 'paid_in_full' ? 0 :
+            paymentStatus === 'partial_payment' ? (grandTotal - partialPaymentNum) : grandTotal,
+          partialPayment: paymentStatus === 'partial_payment' ? partialPaymentNum : null,
           applyTaxes,
           notes: additionalNotes,
-          date: new Date().toISOString()
+          date: new Date().toISOString(),
+          documentType: documentType,
         };
 
+        const documentPrefix = documentType === 'receipt' ? 'RCP' : 'INV';
         const { error: docError } = await supabase
           .from('documents')
           .insert([{
             user_id: user!.id,
-            document_type: 'receipt',
-            document_number: `RCP-${Date.now().toString().slice(-6)}`,
-            title: `Receipt - ${customerName || 'Walk-in Customer'}`,
-            content: receiptContent as any,
+            document_type: documentType,
+            document_number: `${documentPrefix}-${Date.now().toString().slice(-6)}`,
+            title: `${documentTitle} - ${customerName || 'Walk-in Customer'}`,
+            content: documentContent as any,
             total_amount: grandTotal,
             customer_name: customerName || 'Walk-in Customer',
-            status: 'issued'
+            status: paymentStatus === 'paid_in_full' ? 'issued' : 'pending',
           }]);
 
         if (docError) {
@@ -520,7 +550,7 @@ const SalesRecording = () => {
           throw docError;
         }
 
-        console.log('Receipt saved to documents');
+        console.log(`${documentType} saved to documents`);
       }
 
       const partialPaymentNum = typeof partialPaymentAmount === 'string' ? parseFloat(partialPaymentAmount) : partialPaymentAmount;
@@ -533,7 +563,7 @@ const SalesRecording = () => {
 
       toast({
         title: "✅ Sale Saved Successfully!",
-        description: `Sale of ¢${grandTotal.toFixed(2)} has been recorded${statusMessage}.${generateReceipt ? ' Receipt generated!' : ''}`,
+        description: `Sale of ¢${grandTotal.toFixed(2)} has been recorded${statusMessage}.${generateDocument ? ' Document generated!' : ''}`,
       });
 
       dispatchSalesDataUpdated();
@@ -992,7 +1022,9 @@ const SalesRecording = () => {
               className="flex-1"
             >
               <Receipt className="w-4 h-4 mr-2" />
-              {loading ? "Processing..." : "Complete & Get Receipt"}
+              {loading ? "Processing..." :
+                paymentStatus === 'paid_in_full' ? "Complete & Get Receipt" :
+                  "Complete & Get Invoice"}
             </Button>
           </div>
         </CardContent>
