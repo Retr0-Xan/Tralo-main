@@ -55,12 +55,11 @@ const handler = async (req: Request): Promise<Response> => {
         const receiptNumber = `RCP-${Date.now()}`;
         const receiptDate = new Date(saleData.date).toLocaleDateString();
 
-        // Generate QR code data
-        const qrData = `Receipt: ${receiptNumber}\nBusiness: ${businessProfile?.business_name}\nCustomer: ${saleData.customer.name}\nAmount: ¢${saleData.total.toFixed(2)}\nDate: ${receiptDate}\nContact: ${businessProfile?.phone_number}`;
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+        // File name for storage
+        const fileName = `receipts/${receiptNumber}.html`;
 
-        // Generate HTML receipt
-        const receiptHtml = `
+        // Generate HTML receipt as a function to allow QR code updates
+        const generateReceiptHtml = (qrCodeUrl: string) => `
     <!DOCTYPE html>
     <html>
     <head>
@@ -239,12 +238,42 @@ const handler = async (req: Request): Promise<Response> => {
             <div><strong>Powered by TRALO</strong> - Business Management System</div>
             <div style="margin-top: 8px;">For inquiries: ${businessProfile?.phone_number || 'Contact us'} ${businessProfile?.email ? `| ${businessProfile.email}` : ''}</div>
             <div style="margin-top: 8px;">Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
-            <div style="margin-top: 8px;">Scan QR code to save receipt details</div>
+            <div style="margin-top: 8px;">Scan QR code to download this receipt</div>
         </div>
     </body>
-    </html>`;
+    </html>
+    `;
 
-        return new Response(receiptHtml, {
+        // Upload with placeholder QR
+        const tempHtml = generateReceiptHtml('https://via.placeholder.com/150');
+        const { error: uploadError } = await supabase.storage
+            .from('documents')
+            .upload(fileName, new Blob([tempHtml], { type: 'text/html' }), {
+                contentType: 'text/html',
+                upsert: true
+            });
+
+        if (uploadError) {
+            console.error('Upload error:', uploadError);
+            const fallbackQr = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`Receipt: ${receiptNumber}`)}`;
+            return new Response(generateReceiptHtml(fallbackQr), {
+                headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+            });
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName);
+        const documentUrl = urlData.publicUrl;
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(documentUrl)}`;
+
+        // Update with actual QR
+        const finalHtml = generateReceiptHtml(qrCodeUrl);
+        await supabase.storage.from('documents').update(fileName, new Blob([finalHtml], { type: 'text/html' }), {
+            contentType: 'text/html',
+            upsert: true
+        });
+
+        return new Response(finalHtml, {
             status: 200,
             headers: {
                 'Content-Type': 'text/html',

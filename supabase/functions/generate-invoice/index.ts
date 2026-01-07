@@ -41,15 +41,18 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     try {
+        const supabase = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        );
+
         const requestData: InvoiceRequest = await req.json();
         const { businessProfile, document: doc } = requestData;
 
-        // Generate QR code data (business contact info)
-        const qrData = `Business: ${businessProfile?.business_name}\nPhone: ${businessProfile?.phone_number}\nInvoice: ${doc.documentNumber}`;
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+        const fileName = `invoices/${doc.documentNumber}_${Date.now()}.html`;
 
-        // Generate HTML invoice
-        const invoiceHtml = `
+        // Generate HTML invoice as function
+        const generateInvoiceHtml = (qrCodeUrl: string) => `
     <!DOCTYPE html>
     <html>
     <head>
@@ -199,13 +202,42 @@ const handler = async (req: Request): Promise<Response> => {
         <div class="footer">
             <div class="thank-you footer-highlight">Thank you for your business!</div>
             <div>This is a computer-generated invoice and requires no signature.</div>
-            <div style="margin-top: 10px;">Scan the QR code to save our contact information.</div>
+            <div style="margin-top: 10px;">Scan QR code to download this invoice</div>
         </div>
     </body>
     </html>
     `;
 
-        return new Response(invoiceHtml, {
+        // Upload with placeholder QR
+        const tempHtml = generateInvoiceHtml('https://via.placeholder.com/150');
+        const { error: uploadError } = await supabase.storage
+            .from('documents')
+            .upload(fileName, new Blob([tempHtml], { type: 'text/html' }), {
+                contentType: 'text/html',
+                upsert: true
+            });
+
+        if (uploadError) {
+            console.error('Upload error:', uploadError);
+            const fallbackQr = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`Invoice: ${doc.documentNumber}`)}`;
+            return new Response(generateInvoiceHtml(fallbackQr), {
+                headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+            });
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName);
+        const documentUrl = urlData.publicUrl;
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(documentUrl)}`;
+
+        // Update with actual QR
+        const finalHtml = generateInvoiceHtml(qrCodeUrl);
+        await supabase.storage.from('documents').update(fileName, new Blob([finalHtml], { type: 'text/html' }), {
+            contentType: 'text/html',
+            upsert: true
+        });
+
+        return new Response(finalHtml, {
             headers: {
                 ...corsHeaders,
                 'Content-Type': 'text/html',

@@ -39,15 +39,18 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     try {
+        const supabase = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        );
+
         const requestData: WaybillRequest = await req.json();
         const { businessProfile, document: doc } = requestData;
 
-        // Generate QR code data
-        const qrData = `Waybill: ${doc.documentNumber}\nFrom: ${businessProfile?.business_name}\nTo: ${doc.customerName}\nPhone: ${doc.customerPhone}`;
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+        const fileName = `waybills/${doc.documentNumber}_${Date.now()}.html`;
 
-        // Generate HTML waybill
-        const waybillHtml = `
+        // Generate HTML waybill as function
+        const generateWaybillHtml = (qrCodeUrl: string) => `
     <!DOCTYPE html>
     <html>
     <head>
@@ -251,13 +254,42 @@ const handler = async (req: Request): Promise<Response> => {
         <div class="footer">
             <div class="footer-highlight">This waybill serves as proof of delivery</div>
             <div>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
-            <div style="margin-top: 8px;">Scan QR code for shipment verification and tracking</div>
+            <div style="margin-top: 8px;">Scan QR code to download this waybill</div>
         </div>
     </body>
     </html>
     `;
 
-        return new Response(waybillHtml, {
+        // Upload with placeholder QR
+        const tempHtml = generateWaybillHtml('https://via.placeholder.com/150');
+        const { error: uploadError } = await supabase.storage
+            .from('documents')
+            .upload(fileName, new Blob([tempHtml], { type: 'text/html' }), {
+                contentType: 'text/html',
+                upsert: true
+            });
+
+        if (uploadError) {
+            console.error('Upload error:', uploadError);
+            const fallbackQr = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`Waybill: ${doc.documentNumber}`)}`;
+            return new Response(generateWaybillHtml(fallbackQr), {
+                headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+            });
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName);
+        const documentUrl = urlData.publicUrl;
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(documentUrl)}`;
+
+        // Update with actual QR
+        const finalHtml = generateWaybillHtml(qrCodeUrl);
+        await supabase.storage.from('documents').update(fileName, new Blob([finalHtml], { type: 'text/html' }), {
+            contentType: 'text/html',
+            upsert: true
+        });
+
+        return new Response(finalHtml, {
             headers: {
                 ...corsHeaders,
                 'Content-Type': 'text/html',

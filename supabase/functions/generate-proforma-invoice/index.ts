@@ -41,18 +41,22 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     try {
+        const supabase = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        );
+
         const requestData: ProformaInvoiceRequest = await req.json();
         const { businessProfile, document: doc } = requestData;
 
         // Calculate validity period
         const validityDays = Math.ceil((new Date(doc.validUntil).getTime() - new Date(doc.date).getTime()) / (1000 * 60 * 60 * 24));
 
-        // Generate QR code data
-        const qrData = `Proforma Invoice: ${doc.documentNumber}\nBusiness: ${businessProfile?.business_name}\nCustomer: ${doc.customerName}\nAmount: ¢${doc.total.toFixed(2)}\nValid Until: ${new Date(doc.validUntil).toLocaleDateString()}\nContact: ${businessProfile?.phone_number}`;
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+        // File name for storage
+        const fileName = `proforma-invoices/${doc.documentNumber}_${Date.now()}.html`;
 
-        // Generate HTML proforma invoice
-        const proformaHtml = `
+        // Generate HTML proforma invoice as a function to allow QR code updates
+        const generateProformaHtml = (qrCodeUrl: string) => `
     <!DOCTYPE html>
     <html>
     <head>
@@ -281,13 +285,42 @@ const handler = async (req: Request): Promise<Response> => {
             <div class="footer-highlight">Thank you for considering our services!</div>
             <div>For inquiries, please contact us at ${businessProfile?.phone_number || 'our phone number'}</div>
             <div style="margin-top: 8px;">Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
-            <div style="margin-top: 8px;">Scan QR code to save quote details or contact us directly</div>
+            <div style="margin-top: 8px;">Scan QR code to download this proforma invoice</div>
         </div>
     </body>
     </html>
     `;
 
-        return new Response(proformaHtml, {
+        // Upload with placeholder QR
+        const tempHtml = generateProformaHtml('https://via.placeholder.com/150');
+        const { error: uploadError } = await supabase.storage
+            .from('documents')
+            .upload(fileName, new Blob([tempHtml], { type: 'text/html' }), {
+                contentType: 'text/html',
+                upsert: true
+            });
+
+        if (uploadError) {
+            console.error('Upload error:', uploadError);
+            const fallbackQr = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`Proforma Invoice: ${doc.documentNumber}`)}`;
+            return new Response(generateProformaHtml(fallbackQr), {
+                headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+            });
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName);
+        const documentUrl = urlData.publicUrl;
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(documentUrl)}`;
+
+        // Update with actual QR
+        const finalHtml = generateProformaHtml(qrCodeUrl);
+        await supabase.storage.from('documents').update(fileName, new Blob([finalHtml], { type: 'text/html' }), {
+            contentType: 'text/html',
+            upsert: true
+        });
+
+        return new Response(finalHtml, {
             headers: {
                 ...corsHeaders,
                 'Content-Type': 'text/html',
