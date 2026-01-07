@@ -10,6 +10,7 @@ import { CreditCard, DollarSign, CheckCircle, Clock, User, Phone } from "lucide-
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { dispatchSalesDataUpdated } from "@/lib/sales-events";
 
 interface CreditSale {
     id: string;
@@ -165,6 +166,9 @@ const CreditManagement = () => {
                 title: "Payment Recorded",
                 description: `¢${paymentNum.toFixed(2)} payment recorded successfully${newBalance <= 0 ? '. Credit cleared!' : ''}`,
             });
+
+            // Dispatch sales data update event to refresh dashboards
+            dispatchSalesDataUpdated();
 
             setDialogOpen(false);
             setSelectedSale(null);
