@@ -7,7 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import SalesRecording from "@/components/sales/SalesRecording";
 import SalesDashboard from "@/components/sales/SalesDashboard";
 import SalesSummary from "@/components/sales/SalesSummary";
-import CustomerTrackingDialog from "@/components/sales/CustomerTrackingDialog";
+import CustomerTracking from "@/components/sales/CustomerTracking";
 import SaleReversalDialog from "@/components/sales/SaleReversalDialog";
 import ClientValueRatioDisplay from "@/components/sales/ClientValueRatioDisplay";
 import SalesHistory from "@/components/sales/SalesHistory";
@@ -135,17 +135,7 @@ const Sales = () => {
           {activeTab === "dashboard" && <SalesDashboard />}
           {activeTab === "history" && <SalesHistory />}
           {activeTab === "summary" && <SalesSummary />}
-          {activeTab === "customers" && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h2 className="text-2xl font-semibold text-foreground">Customer Sales Tracking</h2>
-                <p className="text-sm text-muted-foreground">Monitor loyalty, highlight key accounts, and set follow-ups.</p>
-              </div>
-              <div className="flex justify-center">
-                <CustomerTrackingDialog />
-              </div>
-            </div>
-          )}
+          {activeTab === "customers" && <CustomerTracking />}
           {activeTab === "credit" && <CreditManagement />}
         </CardContent>
       </Card>
