@@ -159,7 +159,9 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
           }
         }
 
-        if (field === 'quantity' || field === 'unitPrice' || field === 'discount') {
+        // Always recalculate total when quantity, price, discount changes OR when product is selected
+        if (field === 'quantity' || field === 'unitPrice' || field === 'discount' ||
+          (field === 'description' && updatedItem.isFromStock)) {
           const subtotal = updatedItem.quantity * updatedItem.unitPrice;
           const discountAmount = updatedItem.discount * updatedItem.quantity;
           updatedItem.total = subtotal - discountAmount;
