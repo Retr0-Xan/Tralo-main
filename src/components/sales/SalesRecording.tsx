@@ -178,8 +178,8 @@ const SalesRecording = () => {
 
   const calculateTotalTaxes = () => {
     if (!applyTaxes) return 0;
-    // Combined tax rate: VAT 15% + NHIL 2.5% + GETFund 2.5% + COVID-19 1% = 21%
-    return calculateSubtotal() * 0.21;
+    // Combined tax rate: VAT 15% + NHIL 2.5% + GETFund 2.5% = 20%
+    return calculateSubtotal() * 0.20;
   };
 
   const calculateGrandTotal = () => {
@@ -320,10 +320,10 @@ const SalesRecording = () => {
         // Calculate taxes for this item (proportional to item's share of subtotal)
         const itemSubtotalRatio = item.total / calculateSubtotal();
         const itemTotalTax = applyTaxes ? calculateTotalTaxes() * itemSubtotalRatio : 0;
-        const itemVAT = applyTaxes ? itemTotalTax * (0.15 / 0.21) : 0;
-        const itemNHIL = applyTaxes ? itemTotalTax * (0.025 / 0.21) : 0;
-        const itemGETFund = applyTaxes ? itemTotalTax * (0.025 / 0.21) : 0;
-        const itemCovid19 = applyTaxes ? itemTotalTax * (0.01 / 0.21) : 0;
+        const itemVAT = applyTaxes ? itemTotalTax * (0.15 / 0.20) : 0;
+        const itemNHIL = applyTaxes ? itemTotalTax * (0.025 / 0.20) : 0;
+        const itemGETFund = applyTaxes ? itemTotalTax * (0.025 / 0.20) : 0;
+        const itemCovid19 = 0; // COVID-19 levy removed in 2026
 
         // Get unit from inventory if available (prioritize local_unit)
         let unitDisplay = 'units';
@@ -1050,7 +1050,7 @@ const SalesRecording = () => {
                   onCheckedChange={(checked) => setApplyTaxes(!!checked)}
                 />
                 <Label htmlFor="applyTaxes" className="cursor-pointer font-medium">
-                  Apply Taxes (21% - VAT 15%, NHIL 2.5%, GETFund 2.5%, COVID-19 1%)
+                  Apply Taxes (20% - VAT 15%, NHIL 2.5%, GETFund 2.5%)
                 </Label>
               </div>
             </CardContent>

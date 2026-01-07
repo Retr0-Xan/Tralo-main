@@ -2,65 +2,65 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 interface ReceiptRequest {
-  businessProfile: any;
-  items: Array<{
-    productName: string;
-    quantity: number;
-    unitPrice: number;
-    discount: number;
+    businessProfile: any;
+    items: Array<{
+        productName: string;
+        quantity: number;
+        unitPrice: number;
+        discount: number;
+        total: number;
+        isFromInventory: boolean;
+        unitOfMeasure?: string;
+    }>;
+    customer: {
+        name: string;
+        phone: string;
+    };
+    subtotal: number;
+    totalTax: number;
     total: number;
-    isFromInventory: boolean;
-    unitOfMeasure?: string;
-  }>;
-  customer: {
-    name: string;
-    phone: string;
-  };
-  subtotal: number;
-  totalTax: number;
-  total: number;
-  paymentMethod: string;
-  paymentStatus: string;
-  partialPayment?: number;
-  applyTaxes: boolean;
-  notes?: string;
-  date: string;
+    paymentMethod: string;
+    paymentStatus: string;
+    partialPayment?: number;
+    applyTaxes: boolean;
+    notes?: string;
+    date: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders
-    });
-  }
+    if (req.method === 'OPTIONS') {
+        return new Response(null, {
+            status: 200,
+            headers: corsHeaders
+        });
+    }
 
-  try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    try {
+        const supabase = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        );
 
-    const saleData: ReceiptRequest = await req.json();
+        const saleData: ReceiptRequest = await req.json();
 
-    // Use business profile from request data
-    const businessProfile = saleData.businessProfile;
+        // Use business profile from request data
+        const businessProfile = saleData.businessProfile;
 
-    // Generate receipt number
-    const receiptNumber = `RCP-${Date.now()}`;
-    const receiptDate = new Date(saleData.date).toLocaleDateString();
+        // Generate receipt number
+        const receiptNumber = `RCP-${Date.now()}`;
+        const receiptDate = new Date(saleData.date).toLocaleDateString();
 
-    // Generate QR code data
-    const qrData = `Receipt: ${receiptNumber}\nBusiness: ${businessProfile?.business_name}\nCustomer: ${saleData.customer.name}\nAmount: ¢${saleData.total.toFixed(2)}\nDate: ${receiptDate}\nContact: ${businessProfile?.phone_number}`;
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+        // Generate QR code data
+        const qrData = `Receipt: ${receiptNumber}\nBusiness: ${businessProfile?.business_name}\nCustomer: ${saleData.customer.name}\nAmount: ¢${saleData.total.toFixed(2)}\nDate: ${receiptDate}\nContact: ${businessProfile?.phone_number}`;
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
 
-    // Generate HTML receipt
-    const receiptHtml = `
+        // Generate HTML receipt
+        const receiptHtml = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -190,22 +190,18 @@ const handler = async (req: Request): Promise<Response> => {
                 ${saleData.applyTaxes ? `
                 <tr>
                     <td><strong>VAT (15%):</strong></td>
-                    <td class="text-right">¢${(saleData.totalTax * (0.15 / 0.21)).toFixed(2)}</td>
+                    <td class="text-right">¢${(saleData.totalTax * (0.15 / 0.20)).toFixed(2)}</td>
                 </tr>
                 <tr>
                     <td><strong>NHIL (2.5%):</strong></td>
-                    <td class="text-right">¢${(saleData.totalTax * (0.025 / 0.21)).toFixed(2)}</td>
+                    <td class="text-right">¢${(saleData.totalTax * (0.025 / 0.20)).toFixed(2)}</td>
                 </tr>
                 <tr>
                     <td><strong>GETFund (2.5%):</strong></td>
-                    <td class="text-right">¢${(saleData.totalTax * (0.025 / 0.21)).toFixed(2)}</td>
-                </tr>
-                <tr>
-                    <td><strong>COVID-19 Levy (1%):</strong></td>
-                    <td class="text-right">¢${(saleData.totalTax * (0.01 / 0.21)).toFixed(2)}</td>
+                    <td class="text-right">¢${(saleData.totalTax * (0.025 / 0.20)).toFixed(2)}</td>
                 </tr>
                 <tr style="border-top: 1px solid #cbd5e1;">
-                    <td><strong>Total Taxes:</strong></td>
+                    <td><strong>Total Taxes (20%):</strong></td>
                     <td class="text-right">¢${saleData.totalTax.toFixed(2)}</td>
                 </tr>
                 ` : ''}
@@ -222,11 +218,11 @@ const handler = async (req: Request): Promise<Response> => {
                 <strong>Method:</strong> ${saleData.paymentMethod.toUpperCase()}<br>
                 <strong>Status:</strong> 
                 <span class="payment-status ${saleData.paymentStatus === 'paid' ? 'status-paid' :
-        saleData.paymentStatus === 'credit' ? 'status-credit' : 'status-partial'
-      }">
+                saleData.paymentStatus === 'credit' ? 'status-credit' : 'status-partial'
+            }">
                     ${saleData.paymentStatus === 'credit' ? 'CREDIT SALE' :
-        saleData.paymentStatus === 'partial_payment' ? `PARTIAL PAYMENT (¢${saleData.partialPayment?.toFixed(2)})` :
-          'PAID IN FULL'}
+                saleData.paymentStatus === 'partial_payment' ? `PARTIAL PAYMENT (¢${saleData.partialPayment?.toFixed(2)})` :
+                    'PAID IN FULL'}
                 </span>
             </div>
         </div>
@@ -248,25 +244,25 @@ const handler = async (req: Request): Promise<Response> => {
     </body>
     </html>`;
 
-    return new Response(receiptHtml, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/html',
-        'Content-Disposition': `attachment; filename="receipt_${receiptNumber}.html"`,
-        ...corsHeaders,
-      },
-    });
+        return new Response(receiptHtml, {
+            status: 200,
+            headers: {
+                'Content-Type': 'text/html',
+                'Content-Disposition': `attachment; filename="receipt_${receiptNumber}.html"`,
+                ...corsHeaders,
+            },
+        });
 
-  } catch (error: any) {
-    console.error('Error generating receipt:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      }
-    );
-  }
+    } catch (error: any) {
+        console.error('Error generating receipt:', error);
+        return new Response(
+            JSON.stringify({ error: error.message }),
+            {
+                status: 500,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            }
+        );
+    }
 };
 
 serve(handler);

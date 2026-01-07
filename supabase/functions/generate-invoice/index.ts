@@ -167,22 +167,18 @@ const handler = async (req: Request): Promise<Response> => {
                 ${doc.includeVAT ? `
                 <tr>
                     <td>VAT (15%):</td>
-                    <td class="text-right">¢${(doc.tax * (0.15 / 0.21)).toFixed(2)}</td>
+                    <td class="text-right">¢${(doc.tax * (0.15 / 0.20)).toFixed(2)}</td>
                 </tr>
                 <tr>
                     <td>NHIL (2.5%):</td>
-                    <td class="text-right">¢${(doc.tax * (0.025 / 0.21)).toFixed(2)}</td>
+                    <td class="text-right">¢${(doc.tax * (0.025 / 0.20)).toFixed(2)}</td>
                 </tr>
                 <tr>
                     <td>GETFund (2.5%):</td>
-                    <td class="text-right">¢${(doc.tax * (0.025 / 0.21)).toFixed(2)}</td>
-                </tr>
-                <tr>
-                    <td>COVID-19 Levy (1%):</td>
-                    <td class="text-right">¢${(doc.tax * (0.01 / 0.21)).toFixed(2)}</td>
+                    <td class="text-right">¢${(doc.tax * (0.025 / 0.20)).toFixed(2)}</td>
                 </tr>
                 <tr style="border-top: 1px solid #cbd5e1;">
-                    <td><strong>Total Taxes (21%):</strong></td>
+                    <td><strong>Total Taxes (20%):</strong></td>
                     <td class="text-right"><strong>¢${doc.tax.toFixed(2)}</strong></td>
                 </tr>
                 ` : ''}
