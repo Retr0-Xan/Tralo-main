@@ -60,7 +60,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
   const { user } = useAuth();
-  const { downloadDocument, shareViaWhatsApp, shareViaEmail, shareViaSMS } = useDocumentShare();
+  const { shareViaWhatsApp, shareViaEmail, shareViaSMS } = useDocumentShare();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -97,7 +97,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
   const fetchInvoices = async () => {
     try {
       if (!user) return;
-      
+
       const { data, error } = await supabase
         .from('proforma_invoices')
         .select('*')
@@ -115,6 +115,125 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadProformaInvoice = async (invoice: ProformaInvoice) => {
+    try {
+      if (!user) return;
+
+      // Fetch business profile
+      const { data: businessProfile, error: profileError } = await supabase
+        .from('business_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching business profile:', profileError);
+        toast({
+          title: "Error",
+          description: "Please complete your business profile first",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Fetch invoice items
+      const { data: invoiceItems, error: itemsError } = await supabase
+        .from('proforma_invoice_items')
+        .select('*')
+        .eq('invoice_id', invoice.id);
+
+      if (itemsError) {
+        console.error('Error fetching invoice items:', itemsError);
+        toast({
+          title: "Error",
+          description: "Failed to load invoice items",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Map invoice items to edge function format
+      const items = (invoiceItems || []).map(item => ({
+        name: item.item_name,
+        description: item.description || '',
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+        amount: item.total_price
+      }));
+
+      // Call edge function
+      const { data, error } = await supabase.functions.invoke('generate-proforma-invoice', {
+        body: {
+          businessProfile,
+          document: {
+            documentNumber: invoice.invoice_number,
+            date: invoice.invoice_date,
+            validUntil: invoice.due_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            customer: {
+              name: invoice.customer_name,
+              email: invoice.customer_email || '',
+              phone: invoice.customer_phone || '',
+              address: invoice.customer_address || ''
+            },
+            items,
+            subtotal: invoice.subtotal,
+            tax: invoice.tax_amount,
+            total: invoice.total_amount,
+            notes: invoice.notes || '',
+            termsAndConditions: invoice.terms_and_conditions || 'Payment terms apply as per agreement.'
+          }
+        }
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        toast({
+          title: "Error",
+          description: "Failed to generate proforma invoice",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!data || !data.html) {
+        console.error('No HTML returned from edge function');
+        toast({
+          title: "Error",
+          description: "Failed to generate proforma invoice",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create blob and download
+      const blob = new Blob([data.html], { type: 'text/html;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Proforma_Invoice_${invoice.invoice_number}.html`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+
+      toast({
+        title: "Success",
+        description: "Proforma invoice downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Error downloading proforma invoice:', error);
+      toast({
+        title: "Error",
+        description: "Failed to download proforma invoice",
+        variant: "destructive",
+      });
     }
   };
 
@@ -149,12 +268,12 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
   const updateItem = (index: number, field: keyof Omit<InvoiceItem, 'id'>, value: string | number) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
-    
+
     // Auto-calculate total price when quantity or unit_price changes
     if (field === 'quantity' || field === 'unit_price') {
       newItems[index].total_price = newItems[index].quantity * newItems[index].unit_price;
     }
-    
+
     setItems(newItems);
   };
 
@@ -162,7 +281,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
     const subtotal = items.reduce((sum, item) => sum + item.total_price, 0);
     const taxRate = parseFloat(formData.tax_rate) || 0;
     const discountRate = parseFloat(formData.discount_rate) || 0;
-    
+
     const taxAmount = (subtotal * taxRate) / 100;
     const discountAmount = (subtotal * discountRate) / 100;
     const total = subtotal + taxAmount - discountAmount;
@@ -172,12 +291,12 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     console.log('=== Proforma Invoice Submit ===');
     console.log('User ID:', user?.id);
     console.log('Form Data:', formData);
     console.log('Items:', items);
-    
+
     if (!user?.id) {
       toast({
         title: "Error",
@@ -186,7 +305,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
       });
       return;
     }
-    
+
     if (!formData.customer_name || !formData.invoice_date) {
       toast({
         title: "Error",
@@ -195,7 +314,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
       });
       return;
     }
-    
+
     if (items.some(item => !item.item_name || item.quantity <= 0)) {
       toast({
         title: "Error",
@@ -206,12 +325,12 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
     }
 
     setLoading(true);
-    
+
     try {
       const { subtotal, taxAmount, discountAmount, total } = calculateTotals();
-      
+
       console.log('Calculated totals:', { subtotal, taxAmount, discountAmount, total });
-      
+
       let invoiceNumber = editingInvoice?.invoice_number;
       if (!invoiceNumber) {
         // Generate new invoice number
@@ -219,7 +338,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
         const { data: numberData, error: numberError } = await supabase.rpc('generate_proforma_invoice_number', {
           user_uuid: user.id
         });
-        
+
         if (numberError) {
           console.error('Error generating invoice number:', numberError);
           throw numberError;
@@ -265,7 +384,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
           throw error;
         }
         invoiceId = editingInvoice.id;
-        
+
         // Delete existing items and insert new ones
         console.log('Deleting old items...');
         await supabase
@@ -284,11 +403,11 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
           console.error('Error creating invoice:', error);
           throw error;
         }
-        
+
         if (!invoiceResult) {
           throw new Error('No invoice result returned');
         }
-        
+
         invoiceId = invoiceResult.id;
         console.log('Created invoice with ID:', invoiceId);
       }
@@ -304,7 +423,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
       }));
 
       console.log('Inserting items:', itemsData);
-      
+
       const { error: itemsError } = await supabase
         .from('proforma_invoice_items')
         .insert(itemsData);
@@ -392,12 +511,12 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
         title: "Invoice Deleted",
         description: "Proforma invoice has been removed",
       });
-      
+
       fetchInvoices();
     } catch (error) {
       console.error('Error deleting invoice:', error);
       toast({
-        title: "Error", 
+        title: "Error",
         description: "Failed to delete invoice",
         variant: "destructive",
       });
@@ -417,7 +536,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
         title: "Status Updated",
         description: `Invoice status changed to ${newStatus}`,
       });
-      
+
       fetchInvoices();
     } catch (error) {
       console.error('Error updating status:', error);
@@ -431,7 +550,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
 
   const filteredInvoices = invoices.filter(invoice => {
     const matchesSearch = invoice.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         invoice.invoice_number.toLowerCase().includes(searchTerm.toLowerCase());
+      invoice.invoice_number.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -442,10 +561,10 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
     const variants = {
       draft: "secondary",
       sent: "default",
-      accepted: "default", 
+      accepted: "default",
       expired: "destructive"
     } as const;
-    
+
     const colors = {
       draft: "bg-gray-100 text-gray-800",
       sent: "bg-blue-100 text-blue-800",
@@ -581,7 +700,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                     <Input
                       id="customer_name"
                       value={formData.customer_name}
-                      onChange={(e) => setFormData({...formData, customer_name: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
                       placeholder="e.g., ABC Trading Company"
                       required
                     />
@@ -593,7 +712,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                       id="customer_email"
                       type="email"
                       value={formData.customer_email}
-                      onChange={(e) => setFormData({...formData, customer_email: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, customer_email: e.target.value })}
                       placeholder="customer@example.com"
                     />
                   </div>
@@ -603,7 +722,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                     <Input
                       id="customer_phone"
                       value={formData.customer_phone}
-                      onChange={(e) => setFormData({...formData, customer_phone: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
                       placeholder="+233 XX XXX XXXX"
                     />
                   </div>
@@ -614,7 +733,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                       id="invoice_date"
                       type="date"
                       value={formData.invoice_date}
-                      onChange={(e) => setFormData({...formData, invoice_date: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, invoice_date: e.target.value })}
                       required
                     />
                   </div>
@@ -625,7 +744,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                   <Textarea
                     id="customer_address"
                     value={formData.customer_address}
-                    onChange={(e) => setFormData({...formData, customer_address: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, customer_address: e.target.value })}
                     placeholder="Customer's business address..."
                     rows={2}
                   />
@@ -702,7 +821,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">Settings</h3>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="tax_rate">Tax Rate (%)</Label>
@@ -713,7 +832,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                         max="100"
                         step="0.01"
                         value={formData.tax_rate}
-                        onChange={(e) => setFormData({...formData, tax_rate: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, tax_rate: e.target.value })}
                       />
                     </div>
 
@@ -726,7 +845,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                         max="100"
                         step="0.01"
                         value={formData.discount_rate}
-                        onChange={(e) => setFormData({...formData, discount_rate: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, discount_rate: e.target.value })}
                       />
                     </div>
                   </div>
@@ -737,7 +856,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                       id="due_date"
                       type="date"
                       value={formData.due_date}
-                      onChange={(e) => setFormData({...formData, due_date: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
                     />
                   </div>
                 </div>
@@ -779,7 +898,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                   <Textarea
                     id="terms_and_conditions"
                     value={formData.terms_and_conditions}
-                    onChange={(e) => setFormData({...formData, terms_and_conditions: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, terms_and_conditions: e.target.value })}
                     placeholder="Payment terms, delivery conditions, etc..."
                     rows={3}
                   />
@@ -790,7 +909,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                   <Textarea
                     id="notes"
                     value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     placeholder="Any additional information..."
                     rows={2}
                   />
@@ -865,12 +984,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => downloadDocument({
-                            documentNumber: invoice.invoice_number,
-                            documentType: "Proforma Invoice",
-                            customerName: invoice.customer_name,
-                            totalAmount: invoice.total_amount
-                          })}
+                          onClick={() => downloadProformaInvoice(invoice)}
                           title="Download"
                         >
                           <Download className="w-4 h-4" />

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Generation Test - TRALO</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .icon.invoice {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .icon.waybill {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .icon.proforma {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .icon.receipt {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .feature-list {
+            list-style: none;
+            margin: 20px 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #666;
+        }
+
+        .feature-list li::before {
+            content: "✓";
+            color: #43e97b;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 15px;
+        }
+
+        .status.ready {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .instructions {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .instructions h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+        }
+
+        .step {
+            background: #f8fafc;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .step-number {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+
+        .warning {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .warning strong {
+            color: #92400e;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📄 Document Generation System</h1>
+            <p>Professional documents with branding & QR codes</p>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <div class="icon invoice">📄</div>
+                    <h3 class="card-title">Invoice</h3>
+                </div>
+                <ul class="feature-list">
+                    <li>Professional blue theme</li>
+                    <li>QR code with payment info</li>
+                    <li>VAT breakdown (12.5%)</li>
+                    <li>Due date & payment terms</li>
+                    <li>Item discounts</li>
+                </ul>
+                <span class="status ready">✅ Ready to Deploy</span>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="icon waybill">📦</div>
+                    <h3 class="card-title">Waybill</h3>
+                </div>
+                <ul class="feature-list">
+                    <li>Shipping document layout</li>
+                    <li>QR code for tracking</li>
+                    <li>Shipper/Consignee info</li>
+                    <li>Signature sections</li>
+                    <li>Package details</li>
+                </ul>
+                <span class="status ready">✅ Ready to Deploy</span>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="icon proforma">💰</div>
+                    <h3 class="card-title">Proforma Invoice</h3>
+                </div>
+                <ul class="feature-list">
+                    <li>Red quote theme</li>
+                    <li>Validity period banner</li>
+                    <li>"Not Tax Invoice" label</li>
+                    <li>Terms & conditions</li>
+                    <li>PROFORMA watermark</li>
+                </ul>
+                <span class="status ready">✅ Ready to Deploy</span>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="icon receipt">🧾</div>
+                    <h3 class="card-title">Receipt</h3>
+                </div>
+                <ul class="feature-list">
+                    <li>Green payment theme</li>
+                    <li>QR code integration</li>
+                    <li>Payment status badges</li>
+                    <li>Tax breakdown</li>
+                    <li>Enhanced branding</li>
+                </ul>
+                <span class="status ready">✅ Ready to Deploy</span>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h2>🚀 Deployment Instructions</h2>
+
+            <div class="warning">
+                <strong>⚠️ Important:</strong> You must deploy the edge functions to Supabase before the documents will
+                work.
+            </div>
+
+            <div class="step">
+                <span class="step-number">1</span>
+                <strong>Install Supabase CLI (if not already installed)</strong>
+                <div class="code-block">npm install -g supabase</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">2</span>
+                <strong>Login to Supabase</strong>
+                <div class="code-block">supabase login</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">3</span>
+                <strong>Deploy all functions using the PowerShell script</strong>
+                <div class="code-block">.\deploy-documents.ps1</div>
+                <p style="margin-top: 10px; color: #666;">
+                    Or deploy manually one by one:
+                </p>
+                <div class="code-block">
+                    supabase functions deploy generate-invoice<br>
+                    supabase functions deploy generate-waybill<br>
+                    supabase functions deploy generate-proforma-invoice<br>
+                    supabase functions deploy generate-receipt
+                </div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">4</span>
+                <strong>Test the documents</strong>
+                <ul style="margin-left: 40px; margin-top: 10px; list-style: disc; color: #666;">
+                    <li>Go to Documents page → Create Invoice/Waybill/Proforma</li>
+                    <li>Go to Sales page → Record sale → Receipt downloads</li>
+                    <li>Verify QR codes appear in all documents</li>
+                    <li>Check business branding is visible</li>
+                    <li>Test print functionality</li>
+                </ul>
+            </div>
+
+            <div class="step">
+                <span class="step-number">5</span>
+                <strong>Verify deployment</strong>
+                <div class="code-block">supabase functions list</div>
+                <p style="margin-top: 10px; color: #666;">
+                    You should see all 4 functions listed with "deployed" status.
+                </p>
+            </div>
+        </div>
+
+        <div style="text-align: center; color: white; margin-top: 40px; opacity: 0.8;">
+            <p>📖 For detailed documentation, see <strong>DOCUMENT_GENERATION_FIX.md</strong></p>
+            <p style="margin-top: 10px;">Made with ❤️ for TRALO</p>
+        </div>
+    </div>
+</body>
+
+</html>

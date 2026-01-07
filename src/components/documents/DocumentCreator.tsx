@@ -69,10 +69,27 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
 
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [businessProfile, setBusinessProfile] = useState<any>(null);
 
   useEffect(() => {
     fetchStockItems();
+    fetchBusinessProfile();
   }, []);
+
+  const fetchBusinessProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('business_profiles')
+        .select('*')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (error) throw error;
+      setBusinessProfile(data);
+    } catch (error) {
+      console.error('Error fetching business profile:', error);
+    }
+  };
 
   const fetchStockItems = async () => {
     try {
@@ -183,10 +200,12 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
         ...formData,
         items,
         subtotal: calculateSubtotal(),
+        overallDiscount: formData.overallDiscount,
         tax: calculateTax(),
         total: calculateTotal()
       } as any;
 
+      // Save to database first
       const { data, error } = await supabase
         .from('documents')
         .insert({
@@ -198,9 +217,16 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
           total_amount: calculateTotal(),
           customer_name: formData.customerName,
           user_id: user?.id
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Generate document HTML if issued
+      if (status === 'issued') {
+        await generateDocument(documentContent);
+      }
 
       toast({
         title: status === 'draft' ? "Document Saved" : "Document Created",
@@ -217,6 +243,111 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const generateDocument = async (documentContent: any) => {
+    try {
+      let functionName = '';
+      let requestData: any = {
+        businessProfile,
+        document: {
+          documentNumber: formData.documentNumber,
+          date: formData.date,
+          customerName: formData.customerName,
+          customerAddress: formData.customerAddress,
+          customerPhone: formData.customerPhone,
+          items: items.map(item => ({
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discount: item.discount,
+            total: item.total
+          })),
+          subtotal: calculateSubtotal(),
+          overallDiscount: formData.overallDiscount,
+          tax: calculateTax(),
+          total: calculateTotal(),
+          notes: formData.notes,
+          includeVAT: formData.includeVAT,
+          paymentTerms: formData.paymentTerms
+        }
+      };
+
+      // Select the appropriate edge function
+      switch (documentType) {
+        case 'invoice':
+          functionName = 'generate-invoice';
+          requestData.document.dueDate = formData.dueDate;
+          break;
+        case 'waybill':
+          functionName = 'generate-waybill';
+          break;
+        case 'proforma_invoice':
+          functionName = 'generate-proforma-invoice';
+          // Calculate valid until date (30 days from now by default)
+          const validUntil = new Date();
+          validUntil.setDate(validUntil.getDate() + 30);
+          requestData.document.validUntil = validUntil.toISOString().split('T')[0];
+          break;
+        default:
+          console.warn(`No generator for document type: ${documentType}`);
+          return;
+      }
+
+      // Call the edge function
+      console.log('Calling edge function:', functionName);
+      console.log('Request data:', requestData);
+
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: requestData
+      });
+
+      console.log('Edge function response:', { data, error });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('No data returned from edge function');
+      }
+
+      // The data should be the HTML string directly
+      const htmlContent = typeof data === 'string' ? data : JSON.stringify(data);
+
+      console.log('Creating download with', htmlContent.length, 'characters');
+
+      // Create and download the HTML file
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `${getDocumentTitle().replace(/\s+/g, '_')}_${formData.documentNumber}_${formData.customerName.replace(/\s+/g, '_')}.html`;
+      document.body.appendChild(a);
+
+      console.log('Triggering download:', a.download);
+      a.click();
+
+      // Clean up after a short delay
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+
+      toast({
+        title: "Document Generated",
+        description: "Your document has been downloaded successfully.",
+      });
+    } catch (error: any) {
+      console.error('Error generating document:', error);
+      toast({
+        title: "Warning",
+        description: error?.message || "Document saved but generation failed. Check console for details.",
+        variant: "destructive",
+      });
     }
   };
 

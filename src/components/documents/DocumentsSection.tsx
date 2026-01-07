@@ -543,6 +543,13 @@ const DocumentsSection = () => {
       color: "bg-blue-500"
     },
     {
+      id: "proforma_invoice",
+      name: "Proforma Invoice",
+      icon: FileText,
+      description: "Create quotation/estimate invoices",
+      color: "bg-red-500"
+    },
+    {
       id: "waybill",
       name: "Waybill",
       icon: Truck,

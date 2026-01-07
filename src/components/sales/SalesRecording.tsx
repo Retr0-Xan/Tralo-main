@@ -479,19 +479,26 @@ const SalesRecording = () => {
             throw error;
           }
 
-          console.log('Receipt generated successfully');
+          console.log('Receipt generated successfully, data length:', data?.length);
 
           // Create blob from the HTML response and download
-          const blob = new Blob([data], { type: 'text/html' });
+          const htmlContent = typeof data === 'string' ? data : JSON.stringify(data);
+          const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
+          a.style.display = 'none';
           a.href = url;
           a.download = `receipt_${Date.now()}.html`;
           document.body.appendChild(a);
           a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          console.log('Receipt downloaded');
+          console.log('Receipt download triggered');
+
+          // Clean up after a short delay
+          setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            console.log('Receipt download cleanup complete');
+          }, 100);
         } catch (receiptError) {
           console.error('Receipt generation error:', receiptError);
           // Don't block the sale if receipt generation fails
