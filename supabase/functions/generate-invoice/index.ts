@@ -225,10 +225,10 @@ const handler = async (req: Request): Promise<Response> => {
             });
         }
 
-        // Get public URL
-        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName);
-        const documentUrl = urlData.publicUrl;
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(documentUrl)}`;
+        // Generate download URL for QR code
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        const downloadUrl = `${supabaseUrl}/functions/v1/download-document?file=${encodeURIComponent(fileName)}`;
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(downloadUrl)}`;
 
         // Update with actual QR
         const finalHtml = generateInvoiceHtml(qrCodeUrl);
