@@ -308,7 +308,7 @@ const handler = async (req: Request): Promise<Response> => {
             });
         }
 
-        // Generate download URL for QR code
+        // Generate download URL for QR code (renders HTML properly)
         const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
         const downloadUrl = `${supabaseUrl}/functions/v1/download-document?file=${encodeURIComponent(fileName)}`;
         const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(downloadUrl)}`;

@@ -49,11 +49,13 @@ const handler = async (req: Request): Promise<Response> => {
         // Get filename from path
         const fileName = filePath.split('/').pop() || 'document.html';
 
+        // Force download by setting proper headers
         return new Response(htmlContent, {
             status: 200,
             headers: {
-                'Content-Type': 'text/html',
+                'Content-Type': 'text/html; charset=utf-8',
                 'Content-Disposition': `attachment; filename="${fileName}"`,
+                'Cache-Control': 'no-cache',
                 ...corsHeaders,
             },
         });
