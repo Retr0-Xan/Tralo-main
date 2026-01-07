@@ -34,7 +34,7 @@ interface StockItem {
   id: string;
   product_name: string;
   current_stock: number;
-  unit_price?: number;
+  selling_price?: number;
 }
 
 const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorProps) => {
@@ -102,11 +102,11 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
 
       // Mock data with prices for demo if no real data
       const mockStock: StockItem[] = [
-        { id: '1', product_name: 'Rice (50kg bag)', current_stock: 25, unit_price: 180.00 },
-        { id: '2', product_name: 'Fish (Tilapia)', current_stock: 0, unit_price: 15.00 },
-        { id: '3', product_name: 'Tomatoes (basket)', current_stock: 12, unit_price: 45.00 },
-        { id: '4', product_name: 'Onions (bag)', current_stock: 8, unit_price: 35.00 },
-        { id: '5', product_name: 'Cooking Oil (5L)', current_stock: 15, unit_price: 55.00 },
+        { id: '1', product_name: 'Rice (50kg bag)', current_stock: 25, selling_price: 180.00 },
+        { id: '2', product_name: 'Fish (Tilapia)', current_stock: 0, selling_price: 15.00 },
+        { id: '3', product_name: 'Tomatoes (basket)', current_stock: 12, selling_price: 45.00 },
+        { id: '4', product_name: 'Onions (bag)', current_stock: 8, selling_price: 35.00 },
+        { id: '5', product_name: 'Cooking Oil (5L)', current_stock: 15, selling_price: 55.00 },
       ];
 
       setStockItems(data?.length ? data : mockStock);
@@ -152,7 +152,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
           if (stockItem) {
             updatedItem.isFromStock = true;
             updatedItem.productId = stockItem.id;
-            updatedItem.unitPrice = stockItem.unit_price || 0;
+            updatedItem.unitPrice = stockItem.selling_price || 0;
           } else {
             updatedItem.isFromStock = false;
             updatedItem.productId = undefined;
