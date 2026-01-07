@@ -39,6 +39,18 @@ const RecentDocumentsList = () => {
 
   useEffect(() => {
     fetchRecentDocuments();
+
+    // Listen for sales data updates to refresh documents
+    const handleSalesUpdate = () => {
+      console.log('Sales data updated, refreshing recent documents...');
+      fetchRecentDocuments();
+    };
+
+    window.addEventListener('sales-data-updated', handleSalesUpdate);
+
+    return () => {
+      window.removeEventListener('sales-data-updated', handleSalesUpdate);
+    };
   }, [user]);
 
   const fetchRecentDocuments = async () => {
@@ -441,6 +453,115 @@ const RecentDocumentsList = () => {
         throw error;
       }
 
+      // Try to use edge function for branded documents
+      const edgeFunctionMap: { [key: string]: string } = {
+        'invoice': 'generate-invoice',
+        'receipt': 'generate-receipt',
+        'waybill': 'generate-waybill',
+        'proforma_invoice': 'generate-proforma-invoice'
+      };
+
+      const edgeFunctionName = edgeFunctionMap[document.document_type];
+
+      if (edgeFunctionName && user) {
+        // Fetch business profile for branded documents
+        const { data: businessProfile, error: profileError } = await supabase
+          .from('business_profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!profileError && businessProfile) {
+          const content = typeof document.content === 'string'
+            ? JSON.parse(document.content)
+            : document.content;
+
+          let edgeFunctionData: any;
+
+          if (document.document_type === 'invoice') {
+            edgeFunctionData = {
+              businessProfile,
+              document: {
+                documentNumber: document.document_number,
+                date: document.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+                dueDate: content?.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                customerName: document.customer_name || 'Customer',
+                customerAddress: content?.customer?.address || '',
+                customerPhone: content?.customer?.phone || 'N/A',
+                items: (content?.items || []).map((item: any) => ({
+                  description: item.productName || item.description || 'Item',
+                  quantity: item.quantity || 1,
+                  unitPrice: item.unitPrice || 0,
+                  discount: item.discount || 0,
+                  total: item.total || 0
+                })),
+                subtotal: content?.subtotal || 0,
+                overallDiscount: 0,
+                tax: content?.totalTax || 0,
+                total: document.total_amount || 0,
+                paymentTerms: content?.paymentTerms || 'Payment due upon receipt',
+                notes: content?.notes || '',
+                includeVAT: content?.applyTaxes || false
+              }
+            };
+          } else if (document.document_type === 'receipt') {
+            edgeFunctionData = {
+              businessProfile,
+              items: (content?.items || []).map((item: any) => ({
+                productName: item.productName || 'Item',
+                quantity: item.quantity || 1,
+                unitPrice: item.unitPrice || 0,
+                total: item.total || 0,
+                unitOfMeasure: item.unitOfMeasure || 'units'
+              })),
+              customer: {
+                name: document.customer_name || 'Customer',
+                phone: content?.customer?.phone || 'N/A'
+              },
+              subtotal: content?.subtotal || 0,
+              totalTax: content?.totalTax || 0,
+              total: document.total_amount || 0,
+              paymentMethod: content?.paymentMethod || 'cash',
+              paymentStatus: content?.paymentStatus || 'paid_in_full',
+              partialPayment: content?.partialPayment || null,
+              applyTaxes: content?.applyTaxes || false,
+              notes: content?.notes || '',
+              date: document.created_at || new Date().toISOString()
+            };
+          }
+
+          if (edgeFunctionData) {
+            const { data: html, error: funcError } = await supabase.functions.invoke(edgeFunctionName, {
+              body: edgeFunctionData
+            });
+
+            if (!funcError && html) {
+              const htmlContent = typeof html === 'string' ? html : JSON.stringify(html);
+              const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+              const url = window.URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.style.display = 'none';
+              link.href = url;
+              link.download = `${document.document_type}_${document.document_number}.html`;
+              document.body.appendChild(link);
+              link.click();
+
+              setTimeout(() => {
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+              }, 100);
+
+              toast({
+                title: "Success",
+                description: "Document downloaded successfully"
+              });
+              return;
+            }
+          }
+        }
+      }
+
+      // Fall back to simple HTML generation
       if (document?.content) {
         const content = typeof document.content === 'string'
           ? JSON.parse(document.content)

@@ -449,63 +449,152 @@ const SalesRecording = () => {
           return { ...item, unitOfMeasure };
         }));
 
-        // Generate and download receipt using edge function
-        const receiptData = {
-          businessProfile,
-          items: itemsWithUnits,
-          customer: {
-            name: customerName || 'Walk-in Customer',
-            phone: customerPhone || 'N/A'
-          },
-          subtotal: calculateSubtotal(),
-          totalTax: calculateTotalTaxes(),
-          total: grandTotal,
-          paymentMethod,
-          paymentStatus,
-          partialPayment: paymentStatus === 'partial_payment' ? partialPaymentAmount : null,
-          applyTaxes,
-          notes: additionalNotes,
-          date: new Date().toISOString()
-        };
+        // For paid_in_full: generate receipt only
+        // For partial_payment: generate both receipt and invoice
+        // For credit: generate invoice only
+        const shouldGenerateReceipt = paymentStatus === 'paid_in_full' || paymentStatus === 'partial_payment';
+        const shouldGenerateInvoice = paymentStatus === 'credit' || paymentStatus === 'partial_payment';
 
-        try {
-          console.log('Calling generate-receipt edge function with data:', receiptData);
-          const { data, error } = await supabase.functions.invoke('generate-receipt', {
-            body: receiptData,
-          });
+        // Generate receipt if needed
+        if (shouldGenerateReceipt) {
+          const receiptData = {
+            businessProfile,
+            items: itemsWithUnits,
+            customer: {
+              name: customerName || 'Walk-in Customer',
+              phone: customerPhone || 'N/A'
+            },
+            subtotal: calculateSubtotal(),
+            totalTax: calculateTotalTaxes(),
+            total: grandTotal,
+            paymentMethod,
+            paymentStatus,
+            partialPayment: paymentStatus === 'partial_payment' ? partialPaymentAmount : null,
+            applyTaxes,
+            notes: additionalNotes,
+            date: new Date().toISOString()
+          };
 
-          if (error) {
-            console.error('Receipt generation error:', error);
-            throw error;
+          try {
+            console.log('Calling generate-receipt edge function with data:', receiptData);
+            const { data, error } = await supabase.functions.invoke('generate-receipt', {
+              body: receiptData,
+            });
+
+            if (error) {
+              console.error('Receipt generation error:', error);
+              throw error;
+            }
+
+            console.log('Receipt generated successfully, data length:', data?.length);
+
+            // Create blob from the HTML response and download
+            const htmlContent = typeof data === 'string' ? data : JSON.stringify(data);
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `receipt_${Date.now()}.html`;
+            document.body.appendChild(a);
+            a.click();
+            console.log('Receipt download triggered');
+
+            // Clean up after a short delay
+            setTimeout(() => {
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+              console.log('Receipt download cleanup complete');
+            }, 100);
+          } catch (receiptError) {
+            console.error('Receipt generation error:', receiptError);
+            // Don't block the sale if receipt generation fails
+            toast({
+              title: "Warning",
+              description: "Sale saved but receipt generation failed. You can generate it later from Documents page.",
+            });
           }
+        }
 
-          console.log('Receipt generated successfully, data length:', data?.length);
+        // Generate invoice if needed (credit or partial payment)
+        if (shouldGenerateInvoice) {
+          try {
+            console.log(`Generating invoice for ${paymentStatus} sale...`);
 
-          // Create blob from the HTML response and download
-          const htmlContent = typeof data === 'string' ? data : JSON.stringify(data);
-          const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = url;
-          a.download = `receipt_${Date.now()}.html`;
-          document.body.appendChild(a);
-          a.click();
-          console.log('Receipt download triggered');
+            // Calculate due date (30 days from now by default)
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + 30);
 
-          // Clean up after a short delay
-          setTimeout(() => {
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            console.log('Receipt download cleanup complete');
-          }, 100);
-        } catch (receiptError) {
-          console.error('Receipt generation error:', receiptError);
-          // Don't block the sale if receipt generation fails
-          toast({
-            title: "Warning",
-            description: "Sale saved but receipt generation failed. You can generate it later from Documents page.",
-          });
+            const partialPaymentNum = typeof partialPaymentAmount === 'string' ? parseFloat(partialPaymentAmount) : partialPaymentAmount;
+            const invoiceNotes = paymentStatus === 'credit'
+              ? (additionalNotes || 'Credit sale - Payment due within 30 days')
+              : (additionalNotes || `Partial payment received: ¢${partialPaymentNum.toFixed(2)}. Balance: ¢${(grandTotal - partialPaymentNum).toFixed(2)}`);
+
+            const invoiceData = {
+              businessProfile,
+              document: {
+                documentNumber: `INV-${Date.now().toString().slice(-6)}`,
+                date: new Date().toISOString().split('T')[0],
+                dueDate: dueDate.toISOString().split('T')[0],
+                customerName: customerName || 'Walk-in Customer',
+                customerAddress: '',
+                customerPhone: customerPhone || 'N/A',
+                items: itemsWithUnits.map(item => ({
+                  description: item.productName,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  discount: 0,
+                  total: item.total
+                })),
+                subtotal: calculateSubtotal(),
+                overallDiscount: 0,
+                tax: calculateTotalTaxes(),
+                total: grandTotal,
+                paymentTerms: paymentStatus === 'credit' ? 'Payment due within 30 days' : 'Partial payment received',
+                notes: invoiceNotes,
+                includeVAT: applyTaxes
+              }
+            };
+
+            const { data: invoiceHtml, error: invoiceError } = await supabase.functions.invoke('generate-invoice', {
+              body: invoiceData,
+            });
+
+            if (invoiceError) {
+              console.error('Invoice generation error:', invoiceError);
+              throw invoiceError;
+            }
+
+            console.log('Invoice generated successfully');
+
+            // Download the invoice
+            const invoiceContent = typeof invoiceHtml === 'string' ? invoiceHtml : JSON.stringify(invoiceHtml);
+            const invoiceBlob = new Blob([invoiceContent], { type: 'text/html;charset=utf-8' });
+            const invoiceUrl = window.URL.createObjectURL(invoiceBlob);
+            const invoiceLink = document.createElement('a');
+            invoiceLink.style.display = 'none';
+            invoiceLink.href = invoiceUrl;
+            invoiceLink.download = `invoice_${Date.now()}.html`;
+            document.body.appendChild(invoiceLink);
+            invoiceLink.click();
+            console.log('Invoice download triggered');
+
+            // Clean up after a short delay
+            setTimeout(() => {
+              document.body.removeChild(invoiceLink);
+              window.URL.revokeObjectURL(invoiceUrl);
+              console.log('Invoice download cleanup complete');
+            }, 200);
+          } catch (invoiceError) {
+            console.error('Invoice generation error:', invoiceError);
+            const errorMsg = paymentStatus === 'partial_payment'
+              ? "Receipt generated but invoice failed. You can generate it later from Documents page."
+              : "Invoice generation failed. You can generate it later from Documents page.";
+            toast({
+              title: "Warning",
+              description: errorMsg,
+            });
+          }
         }
 
         // Also save document record in database
@@ -1031,7 +1120,8 @@ const SalesRecording = () => {
               <Receipt className="w-4 h-4 mr-2" />
               {loading ? "Processing..." :
                 paymentStatus === 'paid_in_full' ? "Complete & Get Receipt" :
-                  "Complete & Get Invoice"}
+                  paymentStatus === 'credit' ? "Complete & Get Invoice" :
+                    "Complete & Get Documents"}
             </Button>
           </div>
         </CardContent>
