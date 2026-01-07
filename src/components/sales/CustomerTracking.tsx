@@ -12,7 +12,7 @@ import { format } from "date-fns";
 
 interface Customer {
     id: string;
-    customer_name: string;
+    name: string;
     phone_number: string;
     email?: string;
     address?: string;
@@ -157,7 +157,7 @@ const CustomerTracking = () => {
                 .from('customers')
                 .insert({
                     user_id: user.id,
-                    customer_name: newCustomer.name.trim(),
+                    name: newCustomer.name.trim(),
                     phone_number: newCustomer.phone_number.trim(),
                     email: newCustomer.email.trim() || null,
                     address: newCustomer.address.trim() || null
@@ -191,7 +191,7 @@ const CustomerTracking = () => {
     };
 
     const filteredCustomers = customers.filter(customer =>
-        (customer.customer_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (customer.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (customer.phone_number || '').includes(searchTerm)
     );
 
@@ -314,7 +314,7 @@ const CustomerTracking = () => {
                                         <div className="flex items-center justify-between">
                                             <div className="space-y-1 flex-1">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="font-medium text-lg">{customer.customer_name}</span>
+                                                    <span className="font-medium text-lg">{customer.name || customer.phone_number}</span>
                                                     <Badge variant="secondary">
                                                         {customer.total_sales_count} sales
                                                     </Badge>
@@ -358,7 +358,7 @@ const CustomerTracking = () => {
                     {/* Customer Details Header */}
                     <div className="flex items-center justify-between">
                         <div>
-                            <h3 className="text-xl font-semibold">{selectedCustomer.customer_name}</h3>
+                            <h3 className="text-xl font-semibold">{selectedCustomer.name || selectedCustomer.phone_number}</h3>
                             <p className="text-muted-foreground">{selectedCustomer.phone_number}</p>
                         </div>
                         <Button
