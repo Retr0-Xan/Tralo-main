@@ -28,15 +28,10 @@ const handler = async (req: Request): Promise<Response> => {
         }
 
         const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-        // Fetch file directly from storage using service role key
-        const storageUrl = `${supabaseUrl}/storage/v1/object/documents/${filePath}`;
-        const response = await fetch(storageUrl, {
-            headers: {
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-        });
+        // Fetch file from public storage (no auth required since bucket is public)
+        const storageUrl = `${supabaseUrl}/storage/v1/object/public/documents/${filePath}`;
+        const response = await fetch(storageUrl);
 
         if (!response.ok) {
             console.error('Storage fetch error:', response.status, response.statusText);
@@ -48,8 +43,6 @@ const handler = async (req: Request): Promise<Response> => {
                 }
             );
         }
-
-        const htmlContent = await response.text();
 
         const htmlContent = await response.text();
 
