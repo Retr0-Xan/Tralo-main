@@ -278,6 +278,34 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
 
       // Select the appropriate edge function
       switch (documentType) {
+        case 'receipt':
+          functionName = 'generate-receipt';
+          // Receipt uses different data structure
+          requestData = {
+            businessProfile,
+            items: items.map(item => ({
+              productName: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: item.discount,
+              total: item.total,
+              isFromInventory: item.isFromStock,
+              unitOfMeasure: 'units'
+            })),
+            customer: {
+              name: formData.customerName,
+              phone: formData.customerPhone
+            },
+            subtotal: calculateSubtotal(),
+            totalTax: calculateTax(),
+            total: calculateTotal(),
+            paymentMethod: formData.paymentTerms,
+            paymentStatus: 'paid',
+            applyTaxes: formData.includeVAT,
+            notes: formData.notes,
+            date: formData.date
+          };
+          break;
         case 'invoice':
           functionName = 'generate-invoice';
           requestData.document.dueDate = formData.dueDate;
