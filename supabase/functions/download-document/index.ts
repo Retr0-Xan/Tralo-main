@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -28,18 +27,19 @@ const handler = async (req: Request): Promise<Response> => {
             );
         }
 
-        const supabase = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-        );
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-        // Download file from storage
-        const { data, error } = await supabase.storage
-            .from('documents')
-            .download(filePath);
+        // Fetch file directly from storage using service role key
+        const storageUrl = `${supabaseUrl}/storage/v1/object/documents/${filePath}`;
+        const response = await fetch(storageUrl, {
+            headers: {
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+        });
 
-        if (error || !data) {
-            console.error('Download error:', error);
+        if (!response.ok) {
+            console.error('Storage fetch error:', response.status, response.statusText);
             return new Response(
                 JSON.stringify({ error: 'File not found' }),
                 {
@@ -49,11 +49,12 @@ const handler = async (req: Request): Promise<Response> => {
             );
         }
 
+        const htmlContent = await response.text();
+
+        const htmlContent = await response.text();
+
         // Get filename from path
         const fileName = filePath.split('/').pop() || 'document.html';
-
-        // Convert blob to text for HTML files
-        const htmlContent = await data.text();
 
         return new Response(htmlContent, {
             status: 200,
