@@ -30,6 +30,10 @@ interface ReceiptRequest {
     applyTaxes: boolean;
     notes?: string;
     date: string;
+    // Past sale markers
+    isPastSale?: boolean;
+    recordedAt?: string;
+    receiptNumber?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -51,9 +55,11 @@ const handler = async (req: Request): Promise<Response> => {
         // Use business profile from request data
         const businessProfile = saleData.businessProfile;
 
-        // Generate receipt number
-        const receiptNumber = `RCP-${Date.now()}`;
+        // Generate receipt number (use provided number for past sales or generate new)
+        const receiptNumber = saleData.receiptNumber || `RCP-${Date.now()}`;
         const receiptDate = new Date(saleData.date).toLocaleDateString();
+        const isPastSale = saleData.isPastSale || false;
+        const recordedAt = saleData.recordedAt ? new Date(saleData.recordedAt).toLocaleString() : null;
 
         // File name for storage
         const fileName = `receipts/${receiptNumber}.html`;
@@ -104,6 +110,10 @@ const handler = async (req: Request): Promise<Response> => {
             .status-partial { background: #fef3c7; color: #92400e; }
             .notes-section { margin-top: 20px; padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px; }
             .notes-title { font-weight: 600; color: #92400e; margin-bottom: 8px; }
+            .past-sale-banner { background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 100%); border: 3px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 8px; text-align: center; }
+            .past-sale-title { font-size: 18px; font-weight: bold; color: #92400e; text-transform: uppercase; margin-bottom: 8px; }
+            .past-sale-details { font-size: 12px; color: #78350f; line-height: 1.6; }
+            .past-sale-label { display: inline-block; background: #f59e0b; color: white; padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-bottom: 8px; }
             .footer { margin-top: 40px; padding-top: 15px; border-top: 2px solid #cbd5e1; text-align: center; font-size: 10px; color: #64748b; }
             .footer-highlight { color: #15803d; font-weight: 600; }
             @media print { body { padding: 0; } }
@@ -125,6 +135,18 @@ const handler = async (req: Request): Promise<Response> => {
         </div>
 
         <div class="receipt-title">SALES RECEIPT</div>
+
+        ${isPastSale ? `
+        <div class="past-sale-banner">
+            <div class="past-sale-label">⏱️ BACKDATED ENTRY</div>
+            <div class="past-sale-title">Past Sale Record</div>
+            <div class="past-sale-details">
+                <strong>Original Sale Date:</strong> ${receiptDate} at ${new Date(saleData.date).toLocaleTimeString()}<br>
+                <strong>Recorded On:</strong> ${recordedAt}<br>
+                <strong>Note:</strong> This sale occurred on a previous date and was entered retrospectively into the system for record-keeping purposes.
+            </div>
+        </div>
+        ` : ''}
 
         <div class="receipt-meta">
             <div class="meta-item">
