@@ -309,19 +309,6 @@ const PastSalesRecording = () => {
                 // Don't fail the whole operation if receipt generation fails
             }
 
-            // If product is from inventory, update stock
-            if (product) {
-                const { error: updateError } = await supabase
-                    .from('user_products')
-                    .update({
-                        current_stock: Math.max(0, product.current_stock - Number(quantity)),
-                        last_sale_date: saleDateTime,
-                    })
-                    .eq('id', product.id);
-
-                if (updateError) console.error('Error updating inventory:', updateError);
-            }
-
             dispatchSalesDataUpdated();
 
             toast({
