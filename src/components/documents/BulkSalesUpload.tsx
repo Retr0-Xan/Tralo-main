@@ -182,7 +182,8 @@ const BulkSalesUpload = () => {
                         .insert({
                             business_id: businessProfile.id,
                             product_name: row.product_name,
-                            customer_phone: row.customer_phone,
+                            customer_name: row.customer_name || (row.customer_phone && row.customer_phone !== 'walk-in' ? row.customer_phone : 'Walk-in Customer'),
+                            customer_phone: row.customer_phone || 'walk-in',
                             amount: subtotal,
                             quantity: row.quantity,
                             payment_method: row.payment_method,

@@ -148,7 +148,7 @@ const SalesHistory = () => {
                     amount: Number(purchase.effective_amount ?? purchase.amount ?? 0) || 0,
                     paymentMethod: purchase.payment_method || "cash",
                     purchaseDate: purchase.purchase_date,
-                    customer: purchase.customer_phone || "Walk-in Customer",
+                    customer: purchase.customer_name || purchase.customer_phone || "Walk-in Customer",
                     status,
                     reversalReason: reversal?.reversal_reason ?? null,
                     reversalReceiptNumber: reversal?.reversal_receipt_number ?? null,

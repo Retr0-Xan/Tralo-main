@@ -218,6 +218,7 @@ const PastSalesRecording = () => {
                     .insert({
                         business_id: businessProfile.id,
                         product_name: item.productName,
+                        customer_name: customerName || (customerPhone ? customerPhone : 'Walk-in Customer'),
                         customer_phone: customerPhone || 'walk-in',
                         amount: itemSubtotal,
                         quantity: item.quantity,

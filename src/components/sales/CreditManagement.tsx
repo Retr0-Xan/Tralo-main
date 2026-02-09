@@ -77,23 +77,10 @@ const CreditManagement = () => {
 
             console.log('Fetched credit sales:', data);
 
-            // Fetch customer names separately for each phone number
-            const phoneNumbers = [...new Set((data || []).map((p: any) => p.customer_phone))];
-            const { data: customers } = await supabase
-                .from('customers')
-                .select('phone_number, name')
-                .eq('user_id', user.id)
-                .in('phone_number', phoneNumbers);
-
-            // Create a map of phone numbers to customer names
-            const customerMap = new Map(
-                (customers || []).map((c: any) => [c.phone_number, c.name])
-            );
-
             // Transform data to CreditSale format
             const salesData: CreditSale[] = (data || []).map((purchase: any) => {
-                // Try to get customer name from the map, fallback to phone
-                const customerName = customerMap.get(purchase.customer_phone) || purchase.customer_phone;
+                // Use customer_name from purchase if available, otherwise fallback to phone
+                const customerName = purchase.customer_name || purchase.customer_phone;
 
                 return {
                     id: purchase.id,

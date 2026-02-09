@@ -133,7 +133,8 @@ const PurchaseMultiple = () => {
             product_name: product.name,
             amount: productTotal,
             quantity: product.quantity,
-            customer_phone: customerData.customerPhone || 'Walk-in Customer',
+            customer_name: customerData.customerName || (customerData.customerPhone ? customerData.customerPhone : 'Walk-in Customer'),
+            customer_phone: customerData.customerPhone || 'walk-in',
             payment_method: customerData.paymentMethod,
             purchase_date: new Date().toISOString(),
           })
