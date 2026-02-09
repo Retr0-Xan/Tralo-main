@@ -281,7 +281,9 @@ const PastSalesRecording = () => {
                     // Past sale markers
                     isPastSale: true,
                     recordedAt,
-                    receiptNumber
+                    receiptNumber,
+                    // Flag to indicate if time was provided
+                    includeTime: !!saleTime
                 };
 
                 const { data: receiptHtml, error: receiptError } = await supabase.functions.invoke('generate-receipt', {

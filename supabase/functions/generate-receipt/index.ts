@@ -34,6 +34,7 @@ interface ReceiptRequest {
     isPastSale?: boolean;
     recordedAt?: string;
     receiptNumber?: string;
+    includeTime?: boolean;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -58,7 +59,10 @@ const handler = async (req: Request): Promise<Response> => {
         // Generate receipt number (use provided number for past sales or generate new)
         const receiptNumber = saleData.receiptNumber || `RCP-${Date.now()}`;
         const receiptDate = new Date(saleData.date).toLocaleDateString();
+        const receiptTime = new Date(saleData.date).toLocaleTimeString();
         const isPastSale = saleData.isPastSale || false;
+        // For past sales, only include time if explicitly set to true; for regular sales, default to true
+        const includeTime = isPastSale ? (saleData.includeTime === true) : true;
         const recordedAt = saleData.recordedAt ? new Date(saleData.recordedAt).toLocaleString() : null;
 
         // File name for storage
@@ -141,7 +145,7 @@ const handler = async (req: Request): Promise<Response> => {
             <div class="past-sale-label">⏱️ BACKDATED ENTRY</div>
             <div class="past-sale-title">Past Sale Record</div>
             <div class="past-sale-details">
-                <strong>Original Sale Date:</strong> ${receiptDate} at ${new Date(saleData.date).toLocaleTimeString()}<br>
+                <strong>Original Sale Date:</strong> ${receiptDate}${includeTime ? ` at ${receiptTime}` : ''}<br>
                 <strong>Recorded On:</strong> ${recordedAt}<br>
                 <strong>Note:</strong> This sale occurred on a previous date and was entered retrospectively into the system for record-keeping purposes.
             </div>
@@ -157,10 +161,12 @@ const handler = async (req: Request): Promise<Response> => {
                 <div class="meta-label">Date</div>
                 <div class="meta-value">${receiptDate}</div>
             </div>
+            ${includeTime ? `
             <div class="meta-item">
                 <div class="meta-label">Time</div>
-                <div class="meta-value">${new Date(saleData.date).toLocaleTimeString()}</div>
+                <div class="meta-value">${receiptTime}</div>
             </div>
+            ` : ''}
         </div>
 
         <div class="customer-info">
