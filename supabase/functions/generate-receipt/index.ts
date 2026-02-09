@@ -1,10 +1,30 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { encode } from "https://deno.land/std@0.190.0/encoding/base64.ts";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Helper function to fetch QR code and convert to base64
+async function fetchQRCodeAsBase64(url: string): Promise<string> {
+    try {
+        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(url)}`;
+        const response = await fetch(qrApiUrl);
+        if (!response.ok) throw new Error('Failed to fetch QR code');
+
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = encode(new Uint8Array(arrayBuffer));
+        return `data:image/png;base64,${base64}`;
+    } catch (error) {
+        console.error('Error fetching QR code:', error);
+        // Return a simple placeholder SVG as fallback
+        const placeholderSvg = `<svg width="150" height="150" xmlns="http://www.w3.org/2000/svg"><rect width="150" height="150" fill="#f0f0f0"/><text x="75" y="75" text-anchor="middle" font-size="14" fill="#666">QR Code</text></svg>`;
+        const base64Svg = encode(new TextEncoder().encode(placeholderSvg));
+        return `data:image/svg+xml;base64,${base64Svg}`;
+    }
+}
 
 interface ReceiptRequest {
     businessProfile: any;
@@ -272,34 +292,31 @@ const handler = async (req: Request): Promise<Response> => {
     </html>
     `;
 
-        // Upload with placeholder QR
-        const tempHtml = generateReceiptHtml('https://via.placeholder.com/150');
+        // Generate download URL for QR code (renders HTML properly)
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        const downloadUrl = `${supabaseUrl}/functions/v1/download-document?file=${encodeURIComponent(fileName)}`;
+
+        // Fetch QR code and convert to base64 data URI for inline embedding
+        const qrCodeDataUri = await fetchQRCodeAsBase64(downloadUrl);
+
+        // Generate final HTML with embedded base64 QR code
+        const finalHtml = generateReceiptHtml(qrCodeDataUri);
+
+        // Upload once with the proper QR code embedded
         const { error: uploadError } = await supabase.storage
             .from('documents')
-            .upload(fileName, new Blob([tempHtml], { type: 'text/html' }), {
+            .upload(fileName, new Blob([finalHtml], { type: 'text/html' }), {
                 contentType: 'text/html',
                 upsert: true
             });
 
         if (uploadError) {
             console.error('Upload error:', uploadError);
-            const fallbackQr = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`Receipt: ${receiptNumber}`)}`;
-            return new Response(generateReceiptHtml(fallbackQr), {
+            // Still return the HTML with embedded QR even if upload fails
+            return new Response(finalHtml, {
                 headers: { ...corsHeaders, 'Content-Type': 'text/html' },
             });
         }
-
-        // Generate download URL for QR code (renders HTML properly)
-        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-        const downloadUrl = `${supabaseUrl}/functions/v1/download-document?file=${encodeURIComponent(fileName)}`;
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(downloadUrl)}`;
-
-        // Update with actual QR
-        const finalHtml = generateReceiptHtml(qrCodeUrl);
-        await supabase.storage.from('documents').update(fileName, new Blob([finalHtml], { type: 'text/html' }), {
-            contentType: 'text/html',
-            upsert: true
-        });
 
         return new Response(finalHtml, {
             status: 200,
