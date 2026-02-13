@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,7 +26,9 @@ import { useHomeMetrics } from "@/hooks/useHomeMetrics";
 const SalesSummary = () => {
   const { toast } = useToast();
   const [selectedPeriod, setSelectedPeriod] = useState("today");
-  const { summaryData, performanceInsights, loading, refreshData } = useSalesSummaryData();
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const { summaryData, performanceInsights, loading, refreshData, fetchCustomPeriodData } = useSalesSummaryData();
   const { generateSalesReport, generateFinancialStatement } = useReportsDownload();
   const { monthlyGoodsTraded, loading: metricsLoading } = useHomeMetrics();
 
@@ -55,16 +59,48 @@ const SalesSummary = () => {
     await generateFinancialStatement(selectedPeriod);
   };
 
+  const handlePeriodChange = (value: string) => {
+    setSelectedPeriod(value);
+    if (value !== 'custom') {
+      setCustomStartDate("");
+      setCustomEndDate("");
+    }
+  };
+
+  const handleApplyCustomRange = () => {
+    if (!customStartDate || !customEndDate) {
+      toast({
+        title: "Missing dates",
+        description: "Please select both a start and end date.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (new Date(customStartDate) > new Date(customEndDate)) {
+      toast({
+        title: "Invalid range",
+        description: "Start date must be before end date.",
+        variant: "destructive",
+      });
+      return;
+    }
+    fetchCustomPeriodData(new Date(customStartDate), new Date(customEndDate));
+  };
+
   const getPeriodLabel = (period: string) => {
-    const labels = {
+    if (period === 'custom' && customStartDate && customEndDate) {
+      return `${new Date(customStartDate).toLocaleDateString()} – ${new Date(customEndDate).toLocaleDateString()}`;
+    }
+    const labels: Record<string, string> = {
       today: "Today",
       week: "This Week",
       month: "This Month",
       quarter: "This Quarter",
       year: "This Year",
-      overall: "Overall History"
+      overall: "Overall History",
+      custom: "Custom Period"
     };
-    return labels[period as keyof typeof labels];
+    return labels[period] || period;
   };
 
   return (
@@ -79,7 +115,7 @@ const SalesSummary = () => {
         </div>
 
         <div className="flex gap-3">
-          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+          <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
@@ -90,6 +126,7 @@ const SalesSummary = () => {
               <SelectItem value="quarter">This Quarter</SelectItem>
               <SelectItem value="year">This Year</SelectItem>
               <SelectItem value="overall">Overall History</SelectItem>
+              <SelectItem value="custom">Custom Period</SelectItem>
             </SelectContent>
           </Select>
 
@@ -112,6 +149,44 @@ const SalesSummary = () => {
           )}
         </div>
       </div>
+
+      {/* Custom Date Range Picker */}
+      {selectedPeriod === 'custom' && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row items-end gap-4">
+              <div className="space-y-1 flex-1">
+                <Label htmlFor="customStart" className="text-sm font-medium">Start Date</Label>
+                <Input
+                  id="customStart"
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="space-y-1 flex-1">
+                <Label htmlFor="customEnd" className="text-sm font-medium">End Date</Label>
+                <Input
+                  id="customEnd"
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <Button
+                onClick={handleApplyCustomRange}
+                disabled={loading || !customStartDate || !customEndDate}
+                className="flex items-center gap-2"
+              >
+                <Calendar className="w-4 h-4" />
+                Apply Range
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Cards */}
       {loading ? (
@@ -306,12 +381,12 @@ const SalesSummary = () => {
             ) : performanceInsights.length > 0 ? (
               performanceInsights.map((insight, index) => (
                 <div key={index} className={`p-3 rounded-lg border ${insight.type === 'success' ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' :
-                    insight.type === 'warning' ? 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800' :
-                      'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800'
+                  insight.type === 'warning' ? 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800' :
+                    'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800'
                   }`}>
                   <p className={`text-sm ${insight.type === 'success' ? 'text-green-800 dark:text-green-200' :
-                      insight.type === 'warning' ? 'text-orange-800 dark:text-orange-200' :
-                        'text-blue-800 dark:text-blue-200'
+                    insight.type === 'warning' ? 'text-orange-800 dark:text-orange-200' :
+                      'text-blue-800 dark:text-blue-200'
                     }`}>
                     {insight.message}
                   </p>

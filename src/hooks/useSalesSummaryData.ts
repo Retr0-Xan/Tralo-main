@@ -281,6 +281,21 @@ export const useSalesSummaryData = () => {
     fetchSummaryData();
   }, [fetchSummaryData]);
 
+  const fetchCustomPeriodData = useCallback(async (startDate: Date, endDate: Date) => {
+    setLoading(true);
+    try {
+      const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+      const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
+      const customData = await calculatePeriodData(start, end);
+      setSummaryData(prev => ({ ...prev, custom: customData }));
+      setPerformanceInsights(generatePerformanceInsights(customData, 'in this period'));
+    } catch (error) {
+      console.error('Error fetching custom period data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [calculatePeriodData]);
+
   useEffect(() => {
     if (user) {
       fetchSummaryData();
@@ -301,6 +316,7 @@ export const useSalesSummaryData = () => {
     summaryData,
     performanceInsights,
     loading,
-    refreshData
+    refreshData,
+    fetchCustomPeriodData
   };
 };
