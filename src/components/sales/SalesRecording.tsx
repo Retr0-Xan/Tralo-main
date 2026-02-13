@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { dispatchSalesDataUpdated } from "@/lib/sales-events";
+import CustomerAutofill from "@/components/sales/CustomerAutofill";
 
 interface ProductItem {
   id: string;
@@ -948,26 +949,12 @@ const SalesRecording = () => {
               <CardTitle className="text-lg">Customer Information (Optional)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="customerName">Customer Name</Label>
-                  <Input
-                    id="customerName"
-                    placeholder="Enter customer's name"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="customerPhone">Customer Phone</Label>
-                  <Input
-                    id="customerPhone"
-                    placeholder="Enter phone number"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                  />
-                </div>
-              </div>
+              <CustomerAutofill
+                customerName={customerName}
+                customerPhone={customerPhone}
+                onCustomerNameChange={setCustomerName}
+                onCustomerPhoneChange={setCustomerPhone}
+              />
               <div>
                 <Label htmlFor="notes">Additional Notes</Label>
                 <Textarea

@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { dispatchSalesDataUpdated } from "@/lib/sales-events";
+import CustomerAutofill from "@/components/sales/CustomerAutofill";
 
 interface InventoryProduct {
     id: string;
@@ -539,25 +540,14 @@ const PastSalesRecording = () => {
                             <CardTitle className="text-sm">Customer & Payment Details</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="customerName">Customer Name (Optional)</Label>
-                                    <Input
-                                        id="customerName"
-                                        value={customerName}
-                                        onChange={(e) => setCustomerName(e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="customerPhone">Customer Phone (Optional)</Label>
-                                    <Input
-                                        id="customerPhone"
-                                        type="tel"
-                                        value={customerPhone}
-                                        onChange={(e) => setCustomerPhone(e.target.value)}
-                                    />
-                                </div>
-                            </div>
+                            <CustomerAutofill
+                                customerName={customerName}
+                                customerPhone={customerPhone}
+                                onCustomerNameChange={setCustomerName}
+                                onCustomerPhoneChange={setCustomerPhone}
+                                nameLabel="Customer Name (Optional)"
+                                phoneLabel="Customer Phone (Optional)"
+                            />
 
                             <div className="space-y-2">
                                 <Label htmlFor="paymentMethod">Payment Method</Label>
