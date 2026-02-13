@@ -456,6 +456,22 @@ const SalesRecording = () => {
         const shouldGenerateReceipt = paymentStatus === 'paid_in_full' || paymentStatus === 'partial_payment';
         const shouldGenerateInvoice = paymentStatus === 'credit' || paymentStatus === 'partial_payment';
 
+        // Helper: trigger download via anchor click (works on iOS unlike window.open)
+        const triggerDownload = (htmlContent: string, fileName: string) => {
+          const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+          }, 500);
+        };
+
         // Generate receipt if needed
         if (shouldGenerateReceipt) {
           const receiptData = {
@@ -489,24 +505,18 @@ const SalesRecording = () => {
 
             console.log('Receipt generated successfully, data length:', data?.length);
 
-            // Create blob from the HTML response and download
+            // Download receipt using helper (works on iOS/Safari)
             const htmlContent = typeof data === 'string' ? data : JSON.stringify(data);
-            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = `receipt_${Date.now()}.html`;
-            document.body.appendChild(a);
-            a.click();
+            triggerDownload(htmlContent, `receipt_${Date.now()}.html`);
             console.log('Receipt download triggered');
 
-            // Clean up after a short delay
-            setTimeout(() => {
-              document.body.removeChild(a);
-              window.URL.revokeObjectURL(url);
-              console.log('Receipt download cleanup complete');
-            }, 100);
+            // If we also need to generate an invoice (partial payment),
+            // wait before triggering the next download to prevent iOS/Safari
+            // from blocking the second download as a popup
+            if (shouldGenerateInvoice) {
+              console.log('Waiting before invoice download (iOS compatibility)...');
+              await new Promise(resolve => setTimeout(resolve, 1500));
+            }
           } catch (receiptError) {
             console.error('Receipt generation error:', receiptError);
             // Don't block the sale if receipt generation fails
@@ -568,24 +578,10 @@ const SalesRecording = () => {
 
             console.log('Invoice generated successfully');
 
-            // Download the invoice
+            // Download invoice using helper (works on iOS/Safari)
             const invoiceContent = typeof invoiceHtml === 'string' ? invoiceHtml : JSON.stringify(invoiceHtml);
-            const invoiceBlob = new Blob([invoiceContent], { type: 'text/html;charset=utf-8' });
-            const invoiceUrl = window.URL.createObjectURL(invoiceBlob);
-            const invoiceLink = document.createElement('a');
-            invoiceLink.style.display = 'none';
-            invoiceLink.href = invoiceUrl;
-            invoiceLink.download = `invoice_${Date.now()}.html`;
-            document.body.appendChild(invoiceLink);
-            invoiceLink.click();
+            triggerDownload(invoiceContent, `invoice_${Date.now()}.html`);
             console.log('Invoice download triggered');
-
-            // Clean up after a short delay
-            setTimeout(() => {
-              document.body.removeChild(invoiceLink);
-              window.URL.revokeObjectURL(invoiceUrl);
-              console.log('Invoice download cleanup complete');
-            }, 200);
           } catch (invoiceError) {
             console.error('Invoice generation error:', invoiceError);
             const errorMsg = paymentStatus === 'partial_payment'
