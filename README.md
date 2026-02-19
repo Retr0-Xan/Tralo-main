@@ -1,73 +1,117 @@
-# Welcome to your Lovable project
+# TRALO
 
-## Project info
+**TRALO** is a business management web app built for small and growing businesses. It brings sales tracking, inventory management, expense recording, and daily business activity into one clean, fast interface.
 
-**URL**: https://lovable.dev/projects/46adac29-ab7b-4d60-9000-0a5da3f6f80b
+> "Tralo helps small and growing businesses track sales, inventory, customers, and daily activity — all in one place."
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+- **Dashboard** — At-a-glance metrics: today's sales, monthly goods traded, current stock value, and profit
+- **Sales Tracking** — Record and review sales with bulk upload and historical data support
+- **Inventory Management** — Track stock levels, group items, manage suppliers, and handle stock conversions
+- **Expenses** — Log and review business expenses
+- **Documents** — Generate and share invoices, receipts, purchase orders, proforma invoices, waybills, and financial statements
+- **Trade Index** — Market insights and watchlist for informed trading decisions
+- **Reminders** — Schedule and manage business reminders with notifications
+- **Trust Score** — A credibility metric that reflects business activity and reliability
+- **Achievements** — Track milestones and business growth progress
+- **QR Code & Business Card** — Generate shareable QR codes and a digital business card
+- **WhatsApp Sharing** — Share documents and summaries directly via WhatsApp
+- **Dark / Light Theme** — Full theme support across the app
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/46adac29-ab7b-4d60-9000-0a5da3f6f80b) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## Tech Stack
 
-**Use your preferred IDE**
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite |
+| UI Components | shadcn/ui, Radix UI, Tailwind CSS |
+| Backend / Auth | Supabase (PostgreSQL, Auth, Edge Functions, Storage) |
+| Data Fetching | TanStack Query (React Query) |
+| PDF Generation | jsPDF, html2canvas |
+| Deployment | Vercel |
+| Analytics | Vercel Analytics |
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+---
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Getting Started
 
-Follow these steps:
+**Prerequisites:** Node.js (v18+) and npm. Install Node via [nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# 1. Clone the repository
+git clone https://github.com/your-username/tralo.git
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# 2. Navigate into the project
+cd tralo
 
-# Step 3: Install the necessary dependencies.
-npm i
+# 3. Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# 4. Set up environment variables
+#    Create a .env.local file and add your Supabase credentials:
+#    VITE_SUPABASE_URL=your_supabase_url
+#    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# 5. Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app runs at `http://localhost:8080` by default.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## Available Scripts
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+| Command | Description |
+|---|---|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run preview` | Preview production build locally |
+| `npm run lint` | Run ESLint |
 
-## What technologies are used for this project?
+---
 
-This project is built with:
+## Project Structure
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```
+src/
+├── components/       # Reusable UI components
+│   ├── documents/    # Document creation & history components
+│   ├── inventory/    # Inventory management components
+│   ├── sales/        # Sales components
+│   ├── expenses/     # Expense components
+│   ├── reminders/    # Reminder components
+│   ├── achievements/ # Achievements & milestones
+│   └── ui/           # Base UI primitives (shadcn/ui)
+├── hooks/            # Custom React hooks
+├── pages/            # Route-level page components
+├── integrations/     # Supabase client & type definitions
+├── lib/              # Utility functions
+└── types/            # Shared TypeScript types
 
-## How can I deploy this project?
+supabase/
+├── functions/        # Edge Functions (invoice gen, notifications, etc.)
+└── migrations/       # Database migration files
+```
 
-Simply open [Lovable](https://lovable.dev/projects/46adac29-ab7b-4d60-9000-0a5da3f6f80b) and click on Share -> Publish.
+---
 
-## Can I connect a custom domain to my Lovable project?
+## Deployment
 
-Yes, you can!
+The project is configured for **Vercel**. All routes are rewritten to `index.html` for SPA routing (see `vercel.json`).
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+To deploy:
+1. Push to your GitHub repository
+2. Import the project in [Vercel](https://vercel.com)
+3. Set the required environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
+4. Deploy
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+---
+
+## License
+
+Private project. All rights reserved.
