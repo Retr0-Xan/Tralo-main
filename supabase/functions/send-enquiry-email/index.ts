@@ -1,219 +1,146 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import {
+  getCorsHeaders,
+  corsPreflightResponse,
+  requireAuth,
+  authErrorResponse,
+  AuthError,
+  checkRateLimit,
+  rateLimitedResponse,
+  escapeHtml,
+  internalErrorResponse,
+} from "../_shared/security.ts";
 
-// Initialize Resend with API key from environment
+// Security fixes:
+//   1. userId taken from verified JWT (requireAuth), not from the request body.
+//   2. escapeHtml() on all user-supplied fields before HTML interpolation → XSS fix.
+//   3. Rate limited: 3 enquiries per 10 minutes per authenticated user.
+//   4. Internal errors no longer leaked to client.
+//   5. Input validation (type allowlist, length limits).
+
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-// Initialize Supabase client for admin operations
 const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 );
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_TYPES = new Set(["enquiry", "suggestion"]);
 
-interface EnquiryEmailRequest {
-  type: string;
-  subject: string;
-  message: string;
-  userEmail: string;
-  contactEmail?: string;
-  contactPhone?: string;
-  userId: string;
-}
+serve(async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
 
-// Fallback handler when Resend API key is not configured
-const handleDatabaseOnlyMode = async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req);
+
   try {
-    const { 
-      type, 
-      subject, 
-      message, 
-      userEmail, 
-      contactEmail, 
-      contactPhone, 
-      userId 
-    }: EnquiryEmailRequest = await req.json();
+    // 1. Authenticate — userId from verified JWT, not request body
+    const { user } = await requireAuth(req);
 
-    console.log("Processing enquiry (database-only mode):", { type, subject, userEmail, userId });
-
-    // Store the enquiry in the database
-    const { error: dbError } = await supabaseAdmin
-      .from('enquiries')
-      .insert({
-        user_id: userId,
-        type,
-        subject,
-        message,
-        contact_email: contactEmail,
-        contact_phone: contactPhone,
-        status: 'submitted'
-      });
-
-    if (dbError) {
-      throw new Error(`Database error: ${dbError.message}`);
+    // 2. Rate limit: 3 per 10 minutes per user
+    if (!checkRateLimit(`send-enquiry-email:${user.id}`, 3, 10 * 60 * 1000)) {
+      return rateLimitedResponse(req);
     }
 
-    console.log(`Enquiry stored successfully for user ${userId}`);
+    const body = await req.json();
+    const type: string = body?.type ?? "";
+    const subject: string = body?.subject ?? "";
+    const message: string = body?.message ?? "";
+    const contactEmail: string = body?.contactEmail ?? "";
+    const contactPhone: string = body?.contactPhone ?? "";
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Enquiry submitted successfully (stored in database)",
-        emailSent: false,
-        stored: true
-      }), 
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      }
-    );
-  } catch (error: any) {
-    console.error("Error in database-only mode:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
-  }
-};
+    // 3. Validate
+    if (!ALLOWED_TYPES.has(type)) {
+      return new Response(JSON.stringify({ error: "Invalid enquiry type" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+    if (!subject.trim() || subject.length > 200) {
+      return new Response(JSON.stringify({ error: "Subject required (max 200 chars)" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+    if (!message.trim() || message.length > 5000) {
+      return new Response(JSON.stringify({ error: "Message required (max 5000 chars)" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
 
-const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+    // 4. Persist — user.id from JWT, not from client body
+    const { error: dbError } = await supabaseAdmin.from("enquiries").insert({
+      user_id: user.id,
+      type,
+      subject: subject.trim(),
+      message: message.trim(),
+      contact_email: contactEmail.trim() || null,
+      contact_phone: contactPhone.trim() || null,
+      status: "submitted",
+    });
 
-  try {
-    // Check if RESEND_API_KEY is configured
+    if (dbError) {
+      console.error("Enquiry DB error:", dbError.message);
+      return new Response(JSON.stringify({ error: "Failed to save enquiry." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+
+    // 5. Send email (optional, degrades gracefully)
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey || resendApiKey.includes("placeholder")) {
-      console.warn("RESEND_API_KEY not properly configured");
-      // Fall back to database storage only
-      return await handleDatabaseOnlyMode(req);
-    }
-    const { 
-      type, 
-      subject, 
-      message, 
-      userEmail, 
-      contactEmail, 
-      contactPhone, 
-      userId 
-    }: EnquiryEmailRequest = await req.json();
+    let emailSent = false;
 
-    console.log("Processing enquiry email:", { type, subject, userEmail, userId });
+    if (resendApiKey && !resendApiKey.includes("placeholder")) {
+      // 6. Escape ALL user-supplied content before HTML interpolation → XSS prevention
+      const safeType = escapeHtml(type);
+      const safeSubject = escapeHtml(subject.trim());
+      const safeMessage = escapeHtml(message.trim());
+      const safeUserEmail = escapeHtml(user.email ?? "");
+      const safeContactEmail = escapeHtml(contactEmail.trim());
+      const safeContactPhone = escapeHtml(contactPhone.trim());
+      const safeUserId = escapeHtml(user.id);
 
-    // First, store in database
-    const { error: dbError } = await supabaseAdmin
-      .from('enquiries')
-      .insert({
-        user_id: userId,
-        type,
-        subject,
-        message,
-        contact_email: contactEmail,
-        contact_phone: contactPhone,
-        status: 'submitted'
-      });
-
-    if (dbError) {
-      throw new Error(`Database error: ${dbError.message}`);
-    }
-
-    console.log(`Enquiry stored successfully for user ${userId}`);
-
-    const recipients = [
-      "enquiries.traloapp@gmail.com"
-    ];
-
-    const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 24px;">
-            ${type === 'enquiry' ? '❓ New Enquiry' : '💡 New Suggestion'}
-          </h1>
-        </div>
-        
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px;">
-          <div style="background: white; padding: 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <h2 style="color: #333; margin-top: 0;">${subject}</h2>
-            
-            <div style="margin: 20px 0; padding: 15px; background: #f1f3f4; border-left: 4px solid #667eea; border-radius: 4px;">
-              <p style="margin: 0; white-space: pre-line; line-height: 1.6;">${message}</p>
-            </div>
-            
-            <div style="border-top: 1px solid #e1e5e9; padding-top: 15px; margin-top: 20px;">
-              <h3 style="color: #666; font-size: 16px; margin-bottom: 10px;">Contact Information:</h3>
-              <p style="margin: 5px 0; color: #555;"><strong>User Email:</strong> ${userEmail}</p>
-              ${contactEmail ? `<p style="margin: 5px 0; color: #555;"><strong>Preferred Contact Email:</strong> ${contactEmail}</p>` : ''}
-              ${contactPhone ? `<p style="margin: 5px 0; color: #555;"><strong>Phone:</strong> ${contactPhone}</p>` : ''}
-              <p style="margin: 5px 0; color: #555;"><strong>User ID:</strong> ${userId}</p>
-              <p style="margin: 5px 0; color: #555;"><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; font-size: 24px;">
+              ${safeType === "enquiry" ? "&#x2753; New Enquiry" : "&#x1F4A1; New Suggestion"}
+            </h1>
+          </div>
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px;">
+            <div style="background: white; padding: 20px; border-radius: 6px;">
+              <h2 style="color: #333; margin-top: 0;">${safeSubject}</h2>
+              <div style="margin: 20px 0; padding: 15px; background: #f1f3f4; border-left: 4px solid #667eea; border-radius: 4px;">
+                <p style="margin: 0; white-space: pre-line; line-height: 1.6;">${safeMessage}</p>
+              </div>
+              <div style="border-top: 1px solid #e1e5e9; padding-top: 15px; margin-top: 20px;">
+                <h3 style="color: #666; font-size: 16px; margin-bottom: 10px;">Contact Information:</h3>
+                <p style="margin: 5px 0;"><strong>User Email:</strong> ${safeUserEmail}</p>
+                ${safeContactEmail ? `<p style="margin: 5px 0;"><strong>Preferred Email:</strong> ${safeContactEmail}</p>` : ""}
+                ${safeContactPhone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${safeContactPhone}</p>` : ""}
+                <p style="margin: 5px 0;"><strong>User ID:</strong> ${safeUserId}</p>
+                <p style="margin: 5px 0;"><strong>Submitted:</strong> ${new Date().toUTCString()}</p>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    `;
+        </div>`;
 
-    // Send email to all recipients
-    const emailPromises = recipients.map(email => 
-      resend.emails.send({
-        from: "Tralo Enquiries <onboarding@resend.dev>",
-        to: [email],
-        subject: `Tralo ${type === 'enquiry' ? 'Enquiry' : 'Suggestion'}: ${subject}`,
-        html: emailHtml,
-        replyTo: userEmail,
-      })
-    );
-
-    const results = await Promise.allSettled(emailPromises);
-    
-    // Check if any emails failed
-    const failed = results.filter(result => result.status === 'rejected');
-    if (failed.length > 0) {
-      console.error("Some emails failed to send:", failed);
+      try {
+        await resend.emails.send({
+          from: "Tralo Enquiries <onboarding@resend.dev>",
+          to: ["enquiries.traloapp@gmail.com"],
+          subject: `Tralo ${type === "enquiry" ? "Enquiry" : "Suggestion"}: ${subject.trim().slice(0, 100)}`,
+          html: emailHtml,
+          replyTo: user.email ?? undefined,
+        });
+        emailSent = true;
+      } catch (emailErr) {
+        console.error("Email send failed (non-fatal):", emailErr);
+      }
     }
 
-    const successful = results.filter(result => result.status === 'fulfilled');
-    console.log(`Successfully sent ${successful.length} out of ${recipients.length} emails`);
+    return new Response(
+      JSON.stringify({ success: true, emailSent, stored: true }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Enquiry submitted and emails sent successfully",
-        emailsSent: successful.length,
-        totalRecipients: recipients.length,
-        stored: true
-      }), 
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      }
-    );
-  } catch (error: any) {
-    console.error("Error in send-enquiry-email function:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+  } catch (err: unknown) {
+    if (err instanceof AuthError) return authErrorResponse(err, req);
+    return internalErrorResponse(err, req);
   }
-};
-
-serve(handler);
+});

@@ -1,11 +1,25 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 import { encode } from "https://deno.land/std@0.190.0/encoding/base64.ts";
+import {
+    getCorsHeaders,
+    corsPreflightResponse,
+    requireAuth,
+    authErrorResponse,
+    AuthError,
+    checkRateLimit,
+    rateLimitedResponse,
+    escapeHtml,
+    DOCUMENT_CSP,
+    internalErrorResponse,
+} from "../_shared/security.ts";
 
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Security fixes:
+//   1. requireAuth() – only authenticated users can generate invoices.
+//   2. escapeHtml() on every user-supplied field interpolated into HTML → XSS fix.
+//   3. Content-Security-Policy header on stored documents prevents script execution.
+//   4. Rate limited: 20 invoices per hour per user.
+//   5. Internal errors no longer leak to client.
 
 // Helper function to fetch QR code and convert to base64
 async function fetchQRCodeAsBase64(url: string): Promise<string> {
@@ -52,14 +66,19 @@ interface InvoiceRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
-    if (req.method === 'OPTIONS') {
-        return new Response(null, {
-            status: 200,
-            headers: corsHeaders
-        });
-    }
+    if (req.method === 'OPTIONS') return corsPreflightResponse(req);
+
+    const corsHeaders = getCorsHeaders(req);
 
     try {
+        // 1. Require authentication
+        const { user } = await requireAuth(req);
+
+        // 2. Rate limit: 20 invoices per hour per user
+        if (!checkRateLimit(`generate-invoice:${user.id}`, 20, 60 * 60 * 1000)) {
+            return rateLimitedResponse(req);
+        }
+
         const supabase = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -68,7 +87,25 @@ const handler = async (req: Request): Promise<Response> => {
         const requestData: InvoiceRequest = await req.json();
         const { businessProfile, document: doc } = requestData;
 
-        const fileName = `invoices/${doc.documentNumber}_${Date.now()}.html`;
+        // 3. Scope the file path to the authenticated user
+        const fileName = `invoices/${user.id}_${doc.documentNumber}_${Date.now()}.html`;
+
+        // 4. Escape all user-supplied content before HTML interpolation
+        const bp = businessProfile ?? {};
+        const safeBizName = escapeHtml(bp.business_name);
+        const safeBizAddress = escapeHtml(bp.business_address);
+        const safeBizPhone = escapeHtml(bp.phone_number);
+        const safeBizEmail = escapeHtml(bp.email);
+        const safeDocNum = escapeHtml(doc.documentNumber);
+        const safeCustName = escapeHtml(doc.customerName);
+        const safeCustAddr = escapeHtml(doc.customerAddress);
+        const safeCustPhone = escapeHtml(doc.customerPhone);
+        const safeTerms = escapeHtml(doc.paymentTerms);
+        const safeNotes = escapeHtml(doc.notes);
+        const safeItems = (doc.items ?? []).map(item => ({
+            ...item,
+            description: escapeHtml(item.description),
+        }));
 
         // Generate HTML invoice as function
         const generateInvoiceHtml = (qrCodeUrl: string) => `
@@ -76,7 +113,8 @@ const handler = async (req: Request): Promise<Response> => {
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Invoice - ${doc.documentNumber}</title>
+        <meta http-equiv="Content-Security-Policy" content="${DOCUMENT_CSP}">
+        <title>Invoice - ${safeDocNum}</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 210mm; margin: 0 auto; padding: 20mm; background: #fff; }
@@ -116,11 +154,11 @@ const handler = async (req: Request): Promise<Response> => {
     <body>
         <div class="header">
             <div class="company-info">
-                <div class="company-name">${businessProfile?.business_name || 'Your Business'}</div>
+                <div class="company-name">${safeBizName || 'Your Business'}</div>
                 <div class="company-details">
-                    ${businessProfile?.business_address || 'Business Address'}<br>
-                    Phone: ${businessProfile?.phone_number || 'N/A'}<br>
-                    ${businessProfile?.email ? `Email: ${businessProfile.email}` : ''}
+                    ${safeBizAddress || 'Business Address'}<br>
+                    Phone: ${safeBizPhone || 'N/A'}<br>
+                    ${safeBizEmail ? `Email: ${safeBizEmail}` : ''}
                 </div>
             </div>
             <div class="branding">
@@ -134,20 +172,20 @@ const handler = async (req: Request): Promise<Response> => {
             <div class="customer-details">
                 <div class="customer-box">
                     <div class="meta-label">Bill To:</div>
-                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">${doc.customerName}</div>
-                    ${doc.customerAddress ? `<div>${doc.customerAddress}</div>` : ''}
-                    <div>Phone: ${doc.customerPhone}</div>
+                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">${safeCustName}</div>
+                    ${safeCustAddr ? `<div>${safeCustAddr}</div>` : ''}
+                    <div>Phone: ${safeCustPhone}</div>
                 </div>
             </div>
             <div class="invoice-details">
                 <div class="meta-label">Invoice Number</div>
-                <div class="meta-value">${doc.documentNumber}</div>
+                <div class="meta-value">${safeDocNum}</div>
                 <div class="meta-label">Invoice Date</div>
                 <div class="meta-value">${new Date(doc.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
                 <div class="meta-label">Due Date</div>
                 <div class="meta-value">${doc.dueDate ? new Date(doc.dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'On Receipt'}</div>
                 <div class="meta-label">Payment Terms</div>
-                <div class="meta-value">${doc.paymentTerms}</div>
+                <div class="meta-value">${safeTerms}</div>
             </div>
         </div>
 
@@ -162,7 +200,7 @@ const handler = async (req: Request): Promise<Response> => {
                 </tr>
             </thead>
             <tbody>
-                ${doc.items.map(item => `
+                ${safeItems.map(item => `
                     <tr>
                         <td>${item.description}</td>
                         <td class="text-right">${item.quantity}</td>
@@ -211,10 +249,10 @@ const handler = async (req: Request): Promise<Response> => {
             </table>
         </div>
 
-        ${doc.notes ? `
+        ${safeNotes ? `
         <div class="notes-section">
             <div class="notes-title">Notes / Terms:</div>
-            <div>${doc.notes}</div>
+            <div>${safeNotes}</div>
         </div>
         ` : ''}
 
@@ -258,15 +296,9 @@ const handler = async (req: Request): Promise<Response> => {
                 'Content-Type': 'text/html',
             },
         });
-    } catch (error) {
-        console.error('Error generating invoice:', error);
-        return new Response(
-            JSON.stringify({ error: error.message }),
-            {
-                status: 500,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            }
-        );
+    } catch (err: unknown) {
+        if (err instanceof AuthError) return authErrorResponse(err, req);
+        return internalErrorResponse(err, req);
     }
 };
 

@@ -1,117 +1,95 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import {
+  getCorsHeaders,
+  corsPreflightResponse,
+  requireAuth,
+  authErrorResponse,
+  AuthError,
+  checkRateLimit,
+  rateLimitedResponse,
+  getClientId,
+  internalErrorResponse,
+} from "../_shared/security.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
-interface ResetPasswordRequest {
-  email: string;
-  newPassword: string;
-}
+// Security fix summary (replaces the original implementation):
+//
+// BEFORE – Critical vulnerabilities:
+//   1. No authentication: anyone could call this endpoint and reset any
+//      account's password by supplying any email address.
+//   2. listUsers() dumped ALL users to find one → user enumeration + data leak.
+//   3. Raw error.message returned to client.
+//   4. No rate limiting.
+//
+// AFTER:
+//   1. requireAuth() validates the caller's JWT.  Only the *authenticated*
+//      user can change their own password via supabase.auth.updateUser().
+//      The service-role admin API is no longer used here.
+//   2. listUsers() removed entirely.
+//   3. Internal errors swallowed; generic message returned.
+//   4. 5 requests / 15 min rate limit per IP.
 
 const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+
+  const corsHeaders = getCorsHeaders(req);
+
+  // Rate limit: 5 password-reset attempts per 15 minutes per IP
+  const clientId = getClientId(req);
+  if (!checkRateLimit(`reset-password:${clientId}`, 5, 15 * 60 * 1000)) {
+    return rateLimitedResponse(req);
   }
 
   try {
-    const { email, newPassword }: ResetPasswordRequest = await req.json();
+    // The user must already be authenticated (they arrived here via the
+    // Supabase magic-link / recovery flow which sets a short-lived session).
+    const { user, supabase } = await requireAuth(req);
 
-    // Validate input
-    if (!email || !newPassword) {
+    const body = await req.json();
+    const newPassword: string = body?.newPassword ?? "";
+
+    // Server-side validation
+    if (!newPassword || typeof newPassword !== "string") {
       return new Response(
-        JSON.stringify({ error: "Email and password are required" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        JSON.stringify({ error: "newPassword is required" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       return new Response(
-        JSON.stringify({ error: "Password must be at least 6 characters" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        JSON.stringify({ error: "Password must be at least 8 characters" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Create Supabase admin client
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
-
-    // Find user by email
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.listUsers();
-    
-    if (userError) {
-      console.error("Error fetching users:", userError);
+    if (newPassword.length > 128) {
       return new Response(
-        JSON.stringify({ error: "Internal server error" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        JSON.stringify({ error: "Password must be less than 128 characters" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    const user = userData.users.find(u => u.email === email);
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: "No account found with this email address" }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
-    // Update user password directly
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      user.id,
-      { password: newPassword }
-    );
+    // Update the password for the *authenticated* user only – no admin bypass.
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
 
     if (updateError) {
-      console.error("Error updating password:", updateError);
+      console.error("Password update error for user:", user.id, updateError.message);
       return new Response(
-        JSON.stringify({ error: "Failed to update password" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
+        JSON.stringify({ error: "Failed to update password. Please request a new reset link." }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log(`Password updated successfully for user: ${email}`);
+    console.log(`Password updated for user: ${user.id}`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Password updated successfully" 
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      JSON.stringify({ success: true, message: "Password updated successfully" }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
 
-  } catch (error: any) {
-    console.error("Error in reset-password function:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+  } catch (err: unknown) {
+    if (err instanceof AuthError) return authErrorResponse(err, req);
+    return internalErrorResponse(err, req);
   }
 };
 

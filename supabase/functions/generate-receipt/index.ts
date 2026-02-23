@@ -1,11 +1,25 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 import { encode } from "https://deno.land/std@0.190.0/encoding/base64.ts";
+import {
+    getCorsHeaders,
+    corsPreflightResponse,
+    requireAuth,
+    authErrorResponse,
+    AuthError,
+    checkRateLimit,
+    rateLimitedResponse,
+    escapeHtml,
+    DOCUMENT_CSP,
+    internalErrorResponse,
+} from "../_shared/security.ts";
 
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Security fixes:
+//   1. requireAuth() – only authenticated users can generate receipts.
+//   2. escapeHtml() on all user-supplied fields in the HTML template → XSS fix.
+//   3. Content-Security-Policy on stored documents blocks script execution.
+//   4. Rate limited: 60 receipts per hour per user.
+//   5. Internal error details no longer leaked to client.
 
 // Helper function to fetch QR code and convert to base64
 async function fetchQRCodeAsBase64(url: string): Promise<string> {
@@ -58,14 +72,19 @@ interface ReceiptRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
-    if (req.method === 'OPTIONS') {
-        return new Response(null, {
-            status: 200,
-            headers: corsHeaders
-        });
-    }
+    if (req.method === 'OPTIONS') return corsPreflightResponse(req);
+
+    const corsHeaders = getCorsHeaders(req);
 
     try {
+        // 1. Require authentication
+        const { user } = await requireAuth(req);
+
+        // 2. Rate limit: 60 receipts per hour per user
+        if (!checkRateLimit(`generate-receipt:${user.id}`, 60, 60 * 60 * 1000)) {
+            return rateLimitedResponse(req);
+        }
+
         const supabase = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -85,8 +104,26 @@ const handler = async (req: Request): Promise<Response> => {
         const includeTime = isPastSale ? (saleData.includeTime === true) : true;
         const recordedAt = saleData.recordedAt ? new Date(saleData.recordedAt).toLocaleString() : null;
 
-        // File name for storage
-        const fileName = `receipts/${receiptNumber}.html`;
+        // 3. Scope file to authenticated user
+        const fileName = `receipts/${user.id}_${receiptNumber}.html`;
+
+        // 4. Escape all user-supplied fields before HTML interpolation
+        const bp = businessProfile ?? {};
+        const safeBizName = escapeHtml(bp.business_name);
+        const safeBizAddr = escapeHtml(bp.business_address);
+        const safeBizPhone = escapeHtml(bp.phone_number);
+        const safeBizEmail = escapeHtml(bp.email);
+        const safeCustName = escapeHtml(saleData.customer?.name);
+        const safeCustPhone = escapeHtml(saleData.customer?.phone);
+        const safeNotes = escapeHtml(saleData.notes);
+        const safePayMethod = escapeHtml(saleData.paymentMethod);
+        const safeReceiptNum = escapeHtml(receiptNumber);
+        const safeItems = (saleData.items ?? []).map(item => ({
+            ...item,
+            productName: escapeHtml(item.productName),
+            unitOfMeasure: escapeHtml(item.unitOfMeasure ?? 'units'),
+        }));
+        const safeRecordedAt = recordedAt ? escapeHtml(recordedAt) : null;
 
         // Generate HTML receipt as a function to allow QR code updates
         const generateReceiptHtml = (qrCodeUrl: string) => `
@@ -94,7 +131,8 @@ const handler = async (req: Request): Promise<Response> => {
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Receipt - ${receiptNumber}</title>
+        <meta http-equiv="Content-Security-Policy" content="${DOCUMENT_CSP}">
+        <title>Receipt - ${safeReceiptNum}</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #fff; }
@@ -146,11 +184,11 @@ const handler = async (req: Request): Promise<Response> => {
     <body>
         <div class="header">
             <div class="company-info">
-                <div class="company-name">${businessProfile?.business_name || 'Your Business'}</div>
+                <div class="company-name">${safeBizName || 'Your Business'}</div>
                 <div class="company-details">
-                    ${businessProfile?.business_address || 'Business Address'}<br>
-                    Phone: ${businessProfile?.phone_number || 'N/A'}<br>
-                    ${businessProfile?.email ? `Email: ${businessProfile.email}` : ''}
+                    ${safeBizAddr || 'Business Address'}<br>
+                    Phone: ${safeBizPhone || 'N/A'}<br>
+                    ${safeBizEmail ? `Email: ${safeBizEmail}` : ''}
                 </div>
             </div>
             <div class="branding">
@@ -162,11 +200,11 @@ const handler = async (req: Request): Promise<Response> => {
 
         ${isPastSale ? `
         <div class="past-sale-banner">
-            <div class="past-sale-label">⏱️ BACKDATED ENTRY</div>
+            <div class="past-sale-label">&#x23F1;&#xFE0F; BACKDATED ENTRY</div>
             <div class="past-sale-title">Past Sale Record</div>
             <div class="past-sale-details">
-                <strong>Original Sale Date:</strong> ${receiptDate}${includeTime ? ` at ${receiptTime}` : ''}<br>
-                <strong>Recorded On:</strong> ${recordedAt}<br>
+                <strong>Original Sale Date:</strong> ${escapeHtml(receiptDate)}${includeTime ? ` at ${escapeHtml(receiptTime)}` : ''}<br>
+                <strong>Recorded On:</strong> ${safeRecordedAt ?? ''}<br>
                 <strong>Note:</strong> This sale occurred on a previous date and was entered retrospectively into the system for record-keeping purposes.
             </div>
         </div>
@@ -175,7 +213,7 @@ const handler = async (req: Request): Promise<Response> => {
         <div class="receipt-meta">
             <div class="meta-item">
                 <div class="meta-label">Receipt Number</div>
-                <div class="meta-value">${receiptNumber}</div>
+                <div class="meta-value">${safeReceiptNum}</div>
             </div>
             <div class="meta-item">
                 <div class="meta-label">Date</div>
@@ -193,11 +231,11 @@ const handler = async (req: Request): Promise<Response> => {
             <div class="customer-title">Customer Information</div>
             <div class="customer-row">
                 <span class="customer-label">Name:</span>
-                <span class="customer-value">${saleData.customer.name}</span>
+                <span class="customer-value">${safeCustName}</span>
             </div>
             <div class="customer-row">
                 <span class="customer-label">Phone:</span>
-                <span class="customer-value">${saleData.customer.phone}</span>
+                <span class="customer-value">${safeCustPhone}</span>
             </div>
         </div>
 
@@ -213,11 +251,11 @@ const handler = async (req: Request): Promise<Response> => {
                 </tr>
             </thead>
             <tbody>
-                ${saleData.items.map((item, index) => `
+                ${safeItems.map((item, index) => `
                     <tr>
                         <td class="text-center">${index + 1}</td>
                         <td>${item.productName}</td>
-                        <td class="text-center"><strong>${item.quantity} ${item.unitOfMeasure || 'units'}</strong></td>
+                        <td class="text-center"><strong>${item.quantity} ${item.unitOfMeasure}</strong></td>
                         <td class="text-right">¢${item.unitPrice.toFixed(2)}</td>
                         <td class="text-right" style="color: ${item.discount > 0 ? '#16a34a' : '#64748b'};">
                             ${item.discount > 0 ? `-¢${item.discount.toFixed(2)}` : '-'}
@@ -260,9 +298,9 @@ const handler = async (req: Request): Promise<Response> => {
         </div>
 
         <div class="payment-info">
-            <div class="payment-title">💳 Payment Information</div>
+            <div class="payment-title">&#x1F4B3; Payment Information</div>
             <div class="payment-details">
-                <strong>Method:</strong> ${saleData.paymentMethod.toUpperCase()}<br>
+                <strong>Method:</strong> ${safePayMethod.toUpperCase()}<br>
                 <strong>Status:</strong> 
                 <span class="payment-status ${saleData.paymentStatus === 'paid' ? 'status-paid' :
                 saleData.paymentStatus === 'credit' ? 'status-credit' : 'status-partial'
@@ -274,17 +312,17 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
         </div>
 
-        ${saleData.notes ? `
+        ${safeNotes ? `
         <div class="notes-section">
-            <div class="notes-title">📝 Notes:</div>
-            <div style="font-size: 13px;">${saleData.notes}</div>
+            <div class="notes-title">&#x1F4DD; Notes:</div>
+            <div style="font-size: 13px;">${safeNotes}</div>
         </div>
         ` : ''}
 
         <div class="footer">
             <div class="footer-highlight">Thank you for your business!</div>
             <div><strong>Powered by TRALO</strong> - Business Management System</div>
-            <div style="margin-top: 8px;">For inquiries: ${businessProfile?.phone_number || 'Contact us'} ${businessProfile?.email ? `| ${businessProfile.email}` : ''}</div>
+            <div style="margin-top: 8px;">For inquiries: ${safeBizPhone || 'Contact us'} ${safeBizEmail ? `| ${safeBizEmail}` : ''}</div>
             <div style="margin-top: 8px;">Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
             <div style="margin-top: 8px;">Scan QR code to download this receipt</div>
         </div>
@@ -292,7 +330,7 @@ const handler = async (req: Request): Promise<Response> => {
     </html>
     `;
 
-        // Generate download URL for QR code (renders HTML properly)
+        // 5. Generate download URL with user-scoped file path
         const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
         const downloadUrl = `${supabaseUrl}/functions/v1/download-document?file=${encodeURIComponent(fileName)}`;
 
@@ -327,15 +365,9 @@ const handler = async (req: Request): Promise<Response> => {
             },
         });
 
-    } catch (error: any) {
-        console.error('Error generating receipt:', error);
-        return new Response(
-            JSON.stringify({ error: error.message }),
-            {
-                status: 500,
-                headers: { 'Content-Type': 'application/json', ...corsHeaders },
-            }
-        );
+    } catch (err: unknown) {
+        if (err instanceof AuthError) return authErrorResponse(err, req);
+        return internalErrorResponse(err, req);
     }
 };
 

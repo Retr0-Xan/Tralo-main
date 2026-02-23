@@ -80,40 +80,10 @@ const ResetPassword = () => {
               return;
             }
 
-            // Check if we have a pending password from the forgot password flow
-            const pendingPassword = sessionStorage.getItem('pendingPassword');
-            const pendingEmail = sessionStorage.getItem('pendingEmail');
-
-            if (pendingPassword && pendingEmail) {
-              // Update the user's password
-              const { error: updateError } = await supabase.auth.updateUser({
-                password: pendingPassword
-              });
-
-              if (updateError) {
-                toast({
-                  title: "Password Update Failed",
-                  description: updateError.message,
-                  variant: "destructive",
-                });
-              } else {
-                // Clean up stored password
-                sessionStorage.removeItem('pendingPassword');
-                sessionStorage.removeItem('pendingEmail');
-
-                toast({
-                  title: "Password Updated Successfully! 🎉",
-                  description: "Your password has been changed. You can now sign in with your new password.",
-                });
-
-                // Sign out and redirect to login
-                await supabase.auth.signOut();
-                setTimeout(() => {
-                  navigate("/auth");
-                }, 2000);
-                return;
-              }
-            }
+            // Security fix: removed auto-fill from sessionStorage.
+            // Storing plain-text passwords in sessionStorage is insecure —
+            // any same-origin script can read it.  The user should type their
+            // new password directly into the form below.
 
             // Clear both hash and search parameters
             window.history.replaceState({}, document.title, "/reset-password");
