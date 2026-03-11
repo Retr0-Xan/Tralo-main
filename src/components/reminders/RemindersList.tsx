@@ -65,11 +65,11 @@ const RemindersList = ({
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-50 border-green-200';
+        return 'bg-green-50 border-green-200 dark:bg-green-950/40 dark:border-green-800';
       case 'overdue':
-        return 'bg-red-50 border-red-200';
+        return 'bg-red-50 border-red-200 dark:bg-red-950/40 dark:border-red-800';
       case 'today':
-        return 'bg-blue-50 border-blue-200';
+        return 'bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-800';
       default:
         return 'bg-background border-border';
     }
@@ -106,14 +106,14 @@ const RemindersList = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
                     {getStatusIcon(status)}
-                    <h3 className={`font-semibold text-foreground ${reminder.is_completed ? 'line-through' : ''
+                    <h3 className={`font-semibold text-gray-900 dark:text-gray-100 ${reminder.is_completed ? 'line-through' : ''
                       }`}>
                       {reminder.title}
                     </h3>
                   </div>
 
                   {reminder.description && (
-                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">
                       {reminder.description}
                     </p>
                   )}
@@ -166,7 +166,7 @@ const RemindersList = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => onDelete(reminder.id)}
-                    className="shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                    className="shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

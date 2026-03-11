@@ -255,13 +255,13 @@ const Reminders = () => {
             </span>
           </CardHeader>
         </Card>
-        <Card className="rounded-2xl border border-green-200">
+        <Card className="rounded-2xl border border-green-200 dark:border-green-800">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-lg">Completed</CardTitle>
               <CardDescription>Closed out follow-ups</CardDescription>
             </div>
-            <span className="rounded-xl bg-green-100 px-3 py-1 text-lg font-semibold text-green-700">
+            <span className="rounded-xl bg-green-100 dark:bg-green-900/30 px-3 py-1 text-lg font-semibold text-green-700 dark:text-green-400">
               {completedCount}
             </span>
           </CardHeader>

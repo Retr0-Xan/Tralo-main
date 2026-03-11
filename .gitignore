@@ -23,3 +23,5 @@ change-summary-2025-10-13.txt
 *.njsproj
 *.sln
 *.sw?
+*.pen
+
