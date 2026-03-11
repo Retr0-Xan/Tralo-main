@@ -259,8 +259,25 @@ export const useSalesSummaryData = () => {
       const endOfOverall = new Date();
       endOfOverall.setHours(23, 59, 59, 999);
 
+      // Yesterday
+      const yesterdayStart = new Date(today);
+      yesterdayStart.setDate(today.getDate() - 1);
+      const yesterdayEnd = new Date(yesterdayStart);
+      yesterdayEnd.setHours(23, 59, 59, 999);
+
+      // Last 7 days
+      const last7Start = new Date(today);
+      last7Start.setDate(today.getDate() - 7);
+
+      // Last 30 days
+      const last30Start = new Date(today);
+      last30Start.setDate(today.getDate() - 30);
+
       const periods = {
         today: await calculatePeriodData(today, endOfToday),
+        yesterday: await calculatePeriodData(yesterdayStart, yesterdayEnd),
+        last_week: await calculatePeriodData(last7Start, endOfToday),
+        last_month: await calculatePeriodData(last30Start, endOfToday),
         week: await calculatePeriodData(weekStart, endOfWeek),
         month: await calculatePeriodData(monthStart, endOfMonth),
         quarter: await calculatePeriodData(quarterStart, endOfQuarter),

@@ -128,7 +128,7 @@ export const useReportsDownload = () => {
     }
   };
 
-  const generateSalesReport = async (period: string) => {
+  const generateSalesReport = async (period: string, startDate?: string, endDate?: string) => {
     if (!user) return;
 
     const periodLabel = formatPeriodLabel(period);
@@ -139,11 +139,17 @@ export const useReportsDownload = () => {
         description: "Your comprehensive sales report is being prepared...",
       });
 
+      const body: Record<string, string> = {
+        period: period,
+        userId: user.id
+      };
+      if (startDate && endDate) {
+        body.startDate = startDate;
+        body.endDate = endDate;
+      }
+
       const { data, error } = await supabase.functions.invoke('generate-sales-report', {
-        body: {
-          period: period,
-          userId: user.id
-        }
+        body
       });
 
       if (error) throw error;
@@ -185,7 +191,7 @@ export const useReportsDownload = () => {
     }
   };
 
-  const generateFinancialStatement = async (period: string) => {
+  const generateFinancialStatement = async (period: string, startDate?: string, endDate?: string) => {
     if (!user) return;
 
     const periodLabel = formatPeriodLabel(period);
@@ -196,11 +202,17 @@ export const useReportsDownload = () => {
         description: "Your comprehensive financial statement is being prepared...",
       });
 
+      const body: Record<string, string> = {
+        period: period,
+        userId: user.id
+      };
+      if (startDate && endDate) {
+        body.startDate = startDate;
+        body.endDate = endDate;
+      }
+
       const { data, error } = await supabase.functions.invoke('generate-financial-statement', {
-        body: {
-          period: period,
-          userId: user.id
-        }
+        body
       });
 
       if (error) throw error;

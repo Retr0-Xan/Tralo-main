@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { FileText, Receipt, FileSpreadsheet, Truck, Plus, Download, Search, Filter, Eye, Undo2, Clock, Upload } from "lucide-react";
+import { FileText, Receipt, FileSpreadsheet, Truck, Plus, Download, Search, Filter, Eye, Undo2, Clock, Upload, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import DocumentCreator from "./DocumentCreator";
@@ -645,6 +646,9 @@ const RecentDocumentsList = () => {
 const DocumentsSection = () => {
   const [activeView, setActiveView] = useState<"overview" | "create" | "history" | "external-receipts" | "proforma-invoices" | "business-notes" | "reversal-receipts">("overview");
   const [selectedDocType, setSelectedDocType] = useState<string>("");
+  const [reportPeriod, setReportPeriod] = useState("month");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const { toast } = useToast();
   const { generateFinancialStatement, generateSalesReport } = useReportsDownload();
 
@@ -692,11 +696,43 @@ const DocumentsSection = () => {
   };
 
   const handleGenerateFinancialStatement = () => {
-    generateFinancialStatement('month');
+    if (reportPeriod === 'custom') {
+      if (!customStartDate || !customEndDate) {
+        toast({ title: "Missing dates", description: "Please select both a start and end date.", variant: "destructive" });
+        return;
+      }
+      if (new Date(customStartDate) > new Date(customEndDate)) {
+        toast({ title: "Invalid range", description: "Start date must be before end date.", variant: "destructive" });
+        return;
+      }
+      generateFinancialStatement('custom', customStartDate, customEndDate);
+    } else {
+      generateFinancialStatement(reportPeriod);
+    }
   };
 
   const handleGenerateSalesReport = () => {
-    generateSalesReport('month');
+    if (reportPeriod === 'custom') {
+      if (!customStartDate || !customEndDate) {
+        toast({ title: "Missing dates", description: "Please select both a start and end date.", variant: "destructive" });
+        return;
+      }
+      if (new Date(customStartDate) > new Date(customEndDate)) {
+        toast({ title: "Invalid range", description: "Start date must be before end date.", variant: "destructive" });
+        return;
+      }
+      generateSalesReport('custom', customStartDate, customEndDate);
+    } else {
+      generateSalesReport(reportPeriod);
+    }
+  };
+
+  const handleReportPeriodChange = (value: string) => {
+    setReportPeriod(value);
+    if (value !== 'custom') {
+      setCustomStartDate("");
+      setCustomEndDate("");
+    }
   };
 
   if (activeView === "create") {
@@ -830,7 +866,57 @@ const DocumentsSection = () => {
             Download comprehensive financial and sales reports
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Period Selector */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
+              <Label className="text-sm font-medium whitespace-nowrap">Report Period:</Label>
+              <Select value={reportPeriod} onValueChange={handleReportPeriodChange}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border">
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="last_week">Last 7 Days</SelectItem>
+                  <SelectItem value="last_month">Last 30 Days</SelectItem>
+                  <SelectItem value="week">This Week</SelectItem>
+                  <SelectItem value="month">This Month</SelectItem>
+                  <SelectItem value="quarter">This Quarter</SelectItem>
+                  <SelectItem value="year">This Year</SelectItem>
+                  <SelectItem value="custom">Custom Period</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Custom Date Range */}
+            {reportPeriod === 'custom' && (
+              <div className="flex flex-col md:flex-row items-end gap-3 p-3 rounded-lg border bg-muted/30">
+                <div className="space-y-1 flex-1">
+                  <Label htmlFor="reportStartDate" className="text-sm">Start Date</Label>
+                  <Input
+                    id="reportStartDate"
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <div className="space-y-1 flex-1">
+                  <Label htmlFor="reportEndDate" className="text-sm">End Date</Label>
+                  <Input
+                    id="reportEndDate"
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Report Buttons */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
               variant="outline"

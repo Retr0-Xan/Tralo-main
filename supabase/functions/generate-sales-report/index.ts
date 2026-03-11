@@ -42,27 +42,59 @@ const corsHeaders = {
 interface SalesReportRequest {
   period: string;
   userId: string;
+  startDate?: string;
+  endDate?: string;
 }
 
-const buildDateRange = (period: string) => {
+const buildDateRange = (period: string, customStart?: string, customEnd?: string) => {
+  if (customStart && customEnd) {
+    return { startDate: new Date(customStart), endDate: new Date(customEnd) };
+  }
+
   const endDate = new Date();
+  const now = new Date();
   const startDate = new Date();
 
   switch (period) {
-    case 'week':
+    case 'today':
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case 'yesterday': {
+      startDate.setDate(startDate.getDate() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setDate(endDate.getDate() - 1);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+    }
+    case 'last_week':
       startDate.setDate(startDate.getDate() - 7);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case 'last_month':
+      startDate.setDate(startDate.getDate() - 30);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case 'week':
+      startDate.setDate(now.getDate() - now.getDay());
+      startDate.setHours(0, 0, 0, 0);
       break;
     case 'month':
-      startDate.setMonth(startDate.getMonth() - 1);
+      startDate.setFullYear(now.getFullYear(), now.getMonth(), 1);
+      startDate.setHours(0, 0, 0, 0);
       break;
-    case 'quarter':
-      startDate.setMonth(startDate.getMonth() - 3);
+    case 'quarter': {
+      const qMonth = Math.floor(now.getMonth() / 3) * 3;
+      startDate.setFullYear(now.getFullYear(), qMonth, 1);
+      startDate.setHours(0, 0, 0, 0);
       break;
+    }
     case 'year':
-      startDate.setFullYear(startDate.getFullYear() - 1);
+      startDate.setFullYear(now.getFullYear(), 0, 1);
+      startDate.setHours(0, 0, 0, 0);
       break;
     default:
-      startDate.setMonth(startDate.getMonth() - 1);
+      startDate.setFullYear(now.getFullYear(), now.getMonth(), 1);
+      startDate.setHours(0, 0, 0, 0);
   }
 
   return { startDate, endDate };
@@ -177,7 +209,7 @@ const handler = async (req: Request): Promise<Response> => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
-    const { period, userId }: SalesReportRequest = await req.json();
+    const { period, userId, startDate: customStart, endDate: customEnd }: SalesReportRequest = await req.json();
 
     if (!period || !userId) {
       return new Response(
@@ -186,7 +218,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const { startDate, endDate } = buildDateRange(period);
+    const { startDate, endDate } = buildDateRange(period, customStart, customEnd);
     const startIso = startDate.toISOString();
     const endIso = endDate.toISOString();
     const startDateLabel = startDate.toLocaleDateString();

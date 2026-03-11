@@ -52,11 +52,19 @@ const SalesSummary = () => {
   };
 
   const handleDownloadReport = async () => {
-    await generateSalesReport(selectedPeriod);
+    if (selectedPeriod === 'custom' && customStartDate && customEndDate) {
+      await generateSalesReport('custom', customStartDate, customEndDate);
+    } else {
+      await generateSalesReport(selectedPeriod);
+    }
   };
 
   const handleDownloadFinancialStatement = async () => {
-    await generateFinancialStatement(selectedPeriod);
+    if (selectedPeriod === 'custom' && customStartDate && customEndDate) {
+      await generateFinancialStatement('custom', customStartDate, customEndDate);
+    } else {
+      await generateFinancialStatement(selectedPeriod);
+    }
   };
 
   const handlePeriodChange = (value: string) => {
@@ -93,6 +101,9 @@ const SalesSummary = () => {
     }
     const labels: Record<string, string> = {
       today: "Today",
+      yesterday: "Yesterday",
+      last_week: "Last 7 Days",
+      last_month: "Last 30 Days",
       week: "This Week",
       month: "This Month",
       quarter: "This Quarter",
@@ -121,6 +132,9 @@ const SalesSummary = () => {
             </SelectTrigger>
             <SelectContent className="bg-background border border-border">
               <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="yesterday">Yesterday</SelectItem>
+              <SelectItem value="last_week">Last 7 Days</SelectItem>
+              <SelectItem value="last_month">Last 30 Days</SelectItem>
               <SelectItem value="week">This Week</SelectItem>
               <SelectItem value="month">This Month</SelectItem>
               <SelectItem value="quarter">This Quarter</SelectItem>
