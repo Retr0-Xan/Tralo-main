@@ -22,6 +22,7 @@ import TrustScoreBadge from "@/components/TrustScoreBadge";
 import { useSalesSummaryData } from "@/hooks/useSalesSummaryData";
 import { useReportsDownload } from "@/hooks/useReportsDownload";
 import { useHomeMetrics } from "@/hooks/useHomeMetrics";
+import CloseForTheDay, { DayClosedBadge } from "@/components/sales/CloseForTheDay";
 
 const SalesSummary = () => {
   const { toast } = useToast();
@@ -44,12 +45,7 @@ const SalesSummary = () => {
     profit: "0.00"
   };
 
-  const handleCloseDay = () => {
-    toast({
-      title: "📊 Daily Report Generated!",
-      description: "Your sales summary for today has been saved and is ready for download.",
-    });
-  };
+
 
   const handleDownloadReport = async () => {
     if (selectedPeriod === 'custom' && customStartDate && customEndDate) {
@@ -155,12 +151,8 @@ const SalesSummary = () => {
             Refresh
           </Button>
 
-          {selectedPeriod === "today" && (
-            <Button onClick={handleCloseDay} className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4" />
-              Close for Day
-            </Button>
-          )}
+          {selectedPeriod === "today" && <CloseForTheDay />}
+          <DayClosedBadge />
         </div>
       </div>
 

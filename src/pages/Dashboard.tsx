@@ -21,6 +21,7 @@ import { useHomeMetrics } from "@/hooks/useHomeMetrics";
 import { useAuth } from "@/hooks/useAuth";
 import TrustScoreBadge from "@/components/TrustScoreBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
+import CloseForTheDay from "@/components/sales/CloseForTheDay";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -124,6 +125,9 @@ const Index = () => {
                 variant="secondary"
                 onClick={() => navigate("/sales?tab=summary")}
               />
+              <div className="pt-2 border-t border-border/50">
+                <CloseForTheDay />
+              </div>
             </CardContent>
           </Card>
 
