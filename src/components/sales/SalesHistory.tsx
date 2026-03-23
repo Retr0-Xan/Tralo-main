@@ -17,7 +17,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeToSalesDataUpdates } from "@/lib/sales-events";
 import { fetchSalesAnalytics } from "@/lib/sales-analytics";
-import { Search, Info, Clock } from "lucide-react";
+import { Search, Info, Clock, Calendar } from "lucide-react";
+
+interface SalesHistoryProps {
+    initialDateFilter?: string;
+}
 
 interface SaleHistoryRecord {
     id: string;
@@ -60,12 +64,21 @@ const getStatusLabel = (status: SaleHistoryRecord["status"]) => {
     }
 };
 
-const SalesHistory = () => {
+const SalesHistory = ({ initialDateFilter }: SalesHistoryProps = {}) => {
     const { user } = useAuth();
     const [records, setRecords] = useState<SaleHistoryRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("all");
+    const [dateFilter, setDateFilter] = useState<string>(initialDateFilter || "all");
+    const [customStartDate, setCustomStartDate] = useState("");
+    const [customEndDate, setCustomEndDate] = useState("");
+
+    useEffect(() => {
+        if (initialDateFilter && initialDateFilter !== dateFilter) {
+            setDateFilter(initialDateFilter);
+        }
+    }, [initialDateFilter]);
 
     const fetchHistory = useCallback(async () => {
         if (!user) {
@@ -181,8 +194,58 @@ const SalesHistory = () => {
         return unsubscribe;
     }, [user, fetchHistory]);
 
+    const getDateRange = useCallback((filter: string): { start: Date; end: Date } | null => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const endOfToday = new Date(today);
+        endOfToday.setHours(23, 59, 59, 999);
+
+        switch (filter) {
+            case "today":
+                return { start: today, end: endOfToday };
+            case "yesterday": {
+                const yStart = new Date(today);
+                yStart.setDate(yStart.getDate() - 1);
+                const yEnd = new Date(yStart);
+                yEnd.setHours(23, 59, 59, 999);
+                return { start: yStart, end: yEnd };
+            }
+            case "last_week": {
+                const lwStart = new Date(today);
+                lwStart.setDate(lwStart.getDate() - 7);
+                return { start: lwStart, end: endOfToday };
+            }
+            case "this_week": {
+                const twStart = new Date(today);
+                twStart.setDate(today.getDate() - today.getDay());
+                return { start: twStart, end: endOfToday };
+            }
+            case "this_month": {
+                const mStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                return { start: mStart, end: endOfToday };
+            }
+            case "last_month": {
+                const lmStart = new Date(today);
+                lmStart.setDate(lmStart.getDate() - 30);
+                return { start: lmStart, end: endOfToday };
+            }
+            case "custom": {
+                if (customStartDate && customEndDate) {
+                    const cStart = new Date(customStartDate);
+                    const cEnd = new Date(customEndDate);
+                    cEnd.setHours(23, 59, 59, 999);
+                    return { start: cStart, end: cEnd };
+                }
+                return null;
+            }
+            default:
+                return null;
+        }
+    }, [customStartDate, customEndDate]);
+
     const filteredRecords = useMemo(() => {
         const query = searchTerm.trim().toLowerCase();
+        const range = getDateRange(dateFilter);
 
         return records.filter((record) => {
             const matchesSearch = !query
@@ -195,9 +258,15 @@ const SalesHistory = () => {
             const matchesStatus =
                 statusFilter === "all" ? true : record.status === statusFilter;
 
-            return matchesSearch && matchesStatus;
+            let matchesDate = true;
+            if (range) {
+                const saleDate = new Date(record.purchaseDate);
+                matchesDate = saleDate >= range.start && saleDate <= range.end;
+            }
+
+            return matchesSearch && matchesStatus && matchesDate;
         });
-    }, [records, searchTerm, statusFilter]);
+    }, [records, searchTerm, statusFilter, dateFilter, getDateRange]);
 
     return (
         <Card className="rounded-2xl border border-border/70">
@@ -216,18 +285,61 @@ const SalesHistory = () => {
                             className="pl-9"
                         />
                     </div>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full md:w-48">
-                            <SelectValue placeholder="Filter status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All statuses</SelectItem>
-                            <SelectItem value="completed">Completed</SelectItem>
-                            <SelectItem value="credit">Pending (Credit)</SelectItem>
-                            <SelectItem value="reverted">Reverted</SelectItem>
-                        </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                        <Select value={dateFilter} onValueChange={setDateFilter}>
+                            <SelectTrigger className="w-full md:w-44">
+                                <Calendar className="mr-2 h-4 w-4" />
+                                <SelectValue placeholder="Filter by date" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background border border-border">
+                                <SelectItem value="all">All Time</SelectItem>
+                                <SelectItem value="today">Today</SelectItem>
+                                <SelectItem value="yesterday">Yesterday</SelectItem>
+                                <SelectItem value="this_week">This Week</SelectItem>
+                                <SelectItem value="last_week">Last 7 Days</SelectItem>
+                                <SelectItem value="this_month">This Month</SelectItem>
+                                <SelectItem value="last_month">Last 30 Days</SelectItem>
+                                <SelectItem value="custom">Custom Range</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="w-full md:w-44">
+                                <SelectValue placeholder="Filter status" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background border border-border">
+                                <SelectItem value="all">All statuses</SelectItem>
+                                <SelectItem value="completed">Completed</SelectItem>
+                                <SelectItem value="credit">Pending (Credit)</SelectItem>
+                                <SelectItem value="reverted">Reverted</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
+
+                {dateFilter === 'custom' && (
+                    <div className="flex flex-col md:flex-row items-end gap-3 p-3 rounded-lg border bg-muted/30">
+                        <div className="space-y-1 flex-1">
+                            <label htmlFor="historyStart" className="text-sm font-medium">Start Date</label>
+                            <Input
+                                id="historyStart"
+                                type="date"
+                                value={customStartDate}
+                                onChange={(e) => setCustomStartDate(e.target.value)}
+                                max={new Date().toISOString().split('T')[0]}
+                            />
+                        </div>
+                        <div className="space-y-1 flex-1">
+                            <label htmlFor="historyEnd" className="text-sm font-medium">End Date</label>
+                            <Input
+                                id="historyEnd"
+                                type="date"
+                                value={customEndDate}
+                                onChange={(e) => setCustomEndDate(e.target.value)}
+                                max={new Date().toISOString().split('T')[0]}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {loading ? (
                     <div className="py-12 text-center text-muted-foreground">Loading sales history...</div>

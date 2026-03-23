@@ -182,9 +182,9 @@ function getActionButton(context: {
     return { label: 'View Slow Stock', route: '/inventory' };
   }
   if (stars >= 4) {
-    return { label: 'See What Worked Today', route: '/sales?tab=summary' };
+    return { label: 'See What Worked Today', route: '/sales?tab=history&period=today' };
   }
-  return { label: 'View Today\'s Sales', route: '/sales?tab=summary' };
+  return { label: 'View Today\'s Sales', route: '/sales?tab=history&period=today' };
 }
 
 function getSecondaryAction(context: {

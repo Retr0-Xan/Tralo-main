@@ -18,13 +18,20 @@ import CreditManagement from "@/components/sales/CreditManagement";
 const Sales = () => {
   const [activeTab, setActiveTab] = useState<"recording" | "dashboard" | "summary" | "customers" | "history" | "past-sales" | "credit">("recording");
   const [searchParams] = useSearchParams();
+  const [historyDateFilter, setHistoryDateFilter] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
+    const period = searchParams.get('period');
     if (tab === 'summary') {
       setActiveTab('summary');
     } else if (tab === 'customers') {
       setActiveTab('customers');
+    } else if (tab === 'history') {
+      setActiveTab('history');
+      if (period) {
+        setHistoryDateFilter(period);
+      }
     }
   }, [searchParams]);
 
@@ -133,7 +140,7 @@ const Sales = () => {
             </div>
           )}
           {activeTab === "dashboard" && <SalesDashboard />}
-          {activeTab === "history" && <SalesHistory />}
+          {activeTab === "history" && <SalesHistory initialDateFilter={historyDateFilter} />}
           {activeTab === "summary" && <SalesSummary />}
           {activeTab === "customers" && <CustomerTracking />}
           {activeTab === "credit" && <CreditManagement />}
