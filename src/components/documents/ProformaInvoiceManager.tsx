@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Plus, FileText, Edit2, Trash2, Search, Filter, Eye, Calendar, DollarSign, Send, Download, Share2, Mail, MessageSquare } from "lucide-react";
+import { ArrowLeft, Plus, FileText, Edit2, Trash2, Search, Filter, Eye, Calendar, DollarSign, Send, Download, Share2, Mail, MessageSquare, Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import TrustScoreBadge from "@/components/TrustScoreBadge";
 import { useDocumentShare } from "@/hooks/useDocumentShare";
+import { Switch } from "@/components/ui/switch";
+import { useStockReservations } from "@/hooks/useStockReservations";
 
 interface ProformaInvoice {
   id: string;
@@ -61,6 +63,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { shareViaWhatsApp, shareViaEmail, shareViaSMS } = useDocumentShare();
+  const { reserveStock, cancelReservation, isReserved } = useStockReservations();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -75,6 +78,8 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
     terms_and_conditions: "",
     notes: ""
   });
+
+  const [reserveStockToggle, setReserveStockToggle] = useState(false);
 
   const [items, setItems] = useState<Omit<InvoiceItem, 'id'>[]>([
     { item_name: "", description: "", quantity: 1, unit_price: 0, total_price: 0 }
@@ -252,6 +257,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
     });
     setItems([{ item_name: "", description: "", quantity: 1, unit_price: 0, total_price: 0 }]);
     setEditingInvoice(null);
+    setReserveStockToggle(false);
   };
 
   const addItem = () => {
@@ -435,9 +441,28 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
 
       console.log('Invoice saved successfully!');
 
+      // Handle stock reservation
+      if (reserveStockToggle) {
+        const reservationItems = items
+          .filter(item => item.item_name && item.quantity > 0)
+          .map(item => ({ itemName: item.item_name, quantity: item.quantity }));
+        if (reservationItems.length > 0) {
+          reserveStock(
+            invoiceId,
+            invoiceNumber!,
+            formData.customer_name,
+            reservationItems,
+            formData.due_date || undefined
+          );
+        }
+      } else if (editingInvoice && isReserved(editingInvoice.id)) {
+        // Toggle was turned off during edit — cancel existing reservation
+        cancelReservation(editingInvoice.id);
+      }
+
       toast({
         title: editingInvoice ? "Invoice Updated" : "Invoice Created",
-        description: `Proforma invoice ${invoiceNumber} has been ${editingInvoice ? 'updated' : 'created'} successfully`,
+        description: `Proforma invoice ${invoiceNumber} has been ${editingInvoice ? 'updated' : 'created'} successfully${reserveStockToggle ? ' (stock reserved)' : ''}`,
       });
 
       setIsDialogOpen(false);
@@ -487,6 +512,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
       })) || []);
 
       setEditingInvoice(invoice);
+      setReserveStockToggle(isReserved(invoice.id));
       setIsDialogOpen(true);
     } catch (error) {
       console.error('Error loading invoice for editing:', error);
@@ -500,6 +526,11 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
 
   const handleDelete = async (id: string) => {
     try {
+      // Cancel any stock reservation for this invoice
+      if (isReserved(id)) {
+        cancelReservation(id);
+      }
+
       const { error } = await supabase
         .from('proforma_invoices')
         .delete()
@@ -509,7 +540,7 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
 
       toast({
         title: "Invoice Deleted",
-        description: "Proforma invoice has been removed",
+        description: "Proforma invoice has been removed (reserved stock released)",
       });
 
       fetchInvoices();
@@ -532,10 +563,19 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
 
       if (error) throw error;
 
-      toast({
-        title: "Status Updated",
-        description: `Invoice status changed to ${newStatus}`,
-      });
+      // Auto-release reservation when invoice is cancelled or expired
+      if ((newStatus === 'expired') && isReserved(id)) {
+        cancelReservation(id);
+        toast({
+          title: "Status Updated",
+          description: `Invoice status changed to ${newStatus} — reserved stock released`,
+        });
+      } else {
+        toast({
+          title: "Status Updated",
+          description: `Invoice status changed to ${newStatus}`,
+        });
+      }
 
       fetchInvoices();
     } catch (error) {
@@ -914,6 +954,27 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                     rows={2}
                   />
                 </div>
+
+                {/* Stock Reservation Toggle */}
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="reserve-stock" className="text-sm font-medium flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-amber-600" />
+                      Reserve Stock for This Customer
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Items on this invoice will be held and cannot be sold to others.{' '}
+                      {formData.due_date
+                        ? `Expires on ${new Date(formData.due_date).toLocaleDateString()}.`
+                        : 'Expires in 7 days if no due date is set.'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="reserve-stock"
+                    checked={reserveStockToggle}
+                    onCheckedChange={setReserveStockToggle}
+                  />
+                </div>
               </div>
 
               <DialogFooter>
@@ -959,7 +1020,17 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                 {filteredInvoices.map((invoice) => (
                   <TableRow key={invoice.id}>
                     <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                    <TableCell>{invoice.customer_name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {invoice.customer_name}
+                        {isReserved(invoice.id) && (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700 text-[10px] px-1.5 py-0">
+                            <Lock className="w-3 h-3 mr-0.5" />
+                            Reserved
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{new Date(invoice.invoice_date).toLocaleDateString()}</TableCell>
                     <TableCell>¢{invoice.total_amount.toFixed(2)}</TableCell>
                     <TableCell>

@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { dispatchSalesDataUpdated } from "@/lib/sales-events";
 import CustomerAutofill from "@/components/sales/CustomerAutofill";
+import { useStockReservations } from "@/hooks/useStockReservations";
 
 interface ProductItem {
   id: string;
@@ -41,6 +42,7 @@ const SalesRecording = () => {
   const [loading, setLoading] = useState(false);
   const [businessProfile, setBusinessProfile] = useState<any>(null);
   const [inventoryProducts, setInventoryProducts] = useState<InventoryProduct[]>([]);
+  const { getAvailableStock, getReservedQuantity } = useStockReservations();
 
   // Multi-step state
   const [currentStep, setCurrentStep] = useState(1);
@@ -124,12 +126,16 @@ const SalesRecording = () => {
 
     if (!isCustomProduct) {
       const inventoryItem = inventoryProducts.find(p => p.product_name.toLowerCase() === selectedProduct.toLowerCase());
-      stockAvailable = inventoryItem?.current_stock;
+      const available = inventoryItem ? getAvailableStock(inventoryItem.product_name, inventoryItem.current_stock) : 0;
+      stockAvailable = available;
 
-      if (inventoryItem && quantityNum > inventoryItem.current_stock) {
+      if (inventoryItem && quantityNum > available) {
+        const reserved = getReservedQuantity(inventoryItem.product_name);
         toast({
           title: "Insufficient Stock",
-          description: `Only ${inventoryItem.current_stock} units available in stock.`,
+          description: reserved > 0
+            ? `Only ${available} units available (${reserved} reserved for invoices).`
+            : `Only ${available} units available in stock.`,
           variant: "destructive",
         });
         return;
@@ -762,11 +768,15 @@ const SalesRecording = () => {
                     <SelectValue placeholder="Choose from inventory or enter custom" />
                   </SelectTrigger>
                   <SelectContent>
-                    {inventoryProducts.map((product) => (
-                      <SelectItem key={product.id} value={product.product_name}>
-                        {product.product_name} - {product.current_stock} in stock
-                      </SelectItem>
-                    ))}
+                    {inventoryProducts.map((product) => {
+                      const reserved = getReservedQuantity(product.product_name);
+                      const available = getAvailableStock(product.product_name, product.current_stock);
+                      return (
+                        <SelectItem key={product.id} value={product.product_name}>
+                          {product.product_name} - {available} available{reserved > 0 ? ` (${reserved} reserved)` : ''}
+                        </SelectItem>
+                      );
+                    })}
                     <SelectItem value="custom">Enter Custom Product</SelectItem>
                   </SelectContent>
                 </Select>

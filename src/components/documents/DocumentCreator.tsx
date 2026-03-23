@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, Download, User, Package, DollarSign, Share2, MessageSquare, Mail } from "lucide-react";
+import { ArrowLeft, Save, Download, User, Package, DollarSign, Share2, MessageSquare, Mail, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import PurchaseOrderCreator from "./PurchaseOrderCreator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocumentShare } from "@/hooks/useDocumentShare";
+import { useStockReservations } from "@/hooks/useStockReservations";
 
 interface DocumentCreatorProps {
   documentType: string;
@@ -49,6 +50,7 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
 
   const { toast } = useToast();
   const { user } = useAuth();
+  const { reserveStock } = useStockReservations();
   const [formData, setFormData] = useState({
     customerName: "",
     customerAddress: "",
@@ -70,6 +72,9 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [businessProfile, setBusinessProfile] = useState<any>(null);
+  const [reserveStockToggle, setReserveStockToggle] = useState(false);
+
+  const showReserveToggle = documentType === 'invoice' || documentType === 'proforma_invoice';
 
   useEffect(() => {
     fetchStockItems();
@@ -224,6 +229,22 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
         .single();
 
       if (error) throw error;
+
+      // Handle stock reservation for invoices and proforma invoices
+      if (reserveStockToggle && data?.id && showReserveToggle) {
+        const reservationItems = items
+          .filter(item => item.description && item.quantity > 0)
+          .map(item => ({ itemName: item.description, quantity: item.quantity }));
+        if (reservationItems.length > 0) {
+          reserveStock(
+            data.id,
+            formData.documentNumber,
+            formData.customerName,
+            reservationItems,
+            formData.dueDate || undefined
+          );
+        }
+      }
 
       // Generate document HTML if issued
       if (status === 'issued') {
@@ -688,6 +709,29 @@ const DocumentCreator = ({ documentType, onBack, onSuccess }: DocumentCreatorPro
               rows={3}
             />
           </div>
+
+          {/* Stock Reservation Toggle — only for invoice & proforma */}
+          {showReserveToggle && (
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800">
+              <div className="space-y-0.5">
+                <Label htmlFor="reserve-stock-doc" className="text-sm font-medium flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-amber-600" />
+                  Reserve Stock for This Customer
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Items on this {documentType === 'invoice' ? 'invoice' : 'proforma'} will be held and cannot be sold to others.{' '}
+                  {formData.dueDate
+                    ? `Expires on ${new Date(formData.dueDate).toLocaleDateString()}.`
+                    : 'Expires in 7 days if no due date is set.'}
+                </p>
+              </div>
+              <Switch
+                id="reserve-stock-doc"
+                checked={reserveStockToggle}
+                onCheckedChange={setReserveStockToggle}
+              />
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-4 pt-4">
