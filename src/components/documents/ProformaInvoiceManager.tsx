@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Plus, FileText, Edit2, Trash2, Search, Filter, Eye, Calendar, DollarSign, Send, Download, Share2, Mail, MessageSquare, Lock } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Plus, FileText, Edit2, Trash2, Search, Filter, Eye, Calendar, DollarSign, Send, Download, Share2, Mail, MessageSquare, Lock, ShoppingCart } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,7 @@ interface ProformaInvoiceManagerProps {
 }
 
 const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState<ProformaInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -588,6 +590,56 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
     }
   };
 
+  const handleConvertToSale = async (invoice: ProformaInvoice) => {
+    try {
+      // Fetch invoice items
+      const { data: invoiceItems, error } = await supabase
+        .from('proforma_invoice_items')
+        .select('*')
+        .eq('invoice_id', invoice.id);
+
+      if (error) throw error;
+
+      if (!invoiceItems || invoiceItems.length === 0) {
+        toast({
+          title: "No Items Found",
+          description: "This invoice has no items to convert.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const conversionData = {
+        source: 'proforma',
+        sourceId: invoice.id,
+        sourceNumber: invoice.invoice_number,
+        customerName: invoice.customer_name || '',
+        customerPhone: invoice.customer_phone || '',
+        items: invoiceItems.map((item: any) => ({
+          productName: item.item_name || 'Item',
+          quantity: item.quantity || 1,
+          unitPrice: item.unit_price || 0,
+          discount: 0,
+        })),
+      };
+
+      localStorage.setItem('tralo_invoice_to_sale', JSON.stringify(conversionData));
+      navigate('/sales');
+
+      toast({
+        title: "Converting to Sale",
+        description: `${invoice.invoice_number} items loaded into sales form.`,
+      });
+    } catch (error) {
+      console.error('Error converting proforma invoice:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load invoice data.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const filteredInvoices = invoices.filter(invoice => {
     const matchesSearch = invoice.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       invoice.invoice_number.toLowerCase().includes(searchTerm.toLowerCase());
@@ -1052,6 +1104,15 @@ const ProformaInvoiceManager = ({ onBack }: ProformaInvoiceManagerProps) => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleConvertToSale(invoice)}
+                          title="Convert to Sale"
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                        >
+                          <ShoppingCart className="w-4 h-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"

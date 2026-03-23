@@ -98,6 +98,42 @@ const SalesRecording = () => {
 
         setInventoryProducts(inventoryData || []);
 
+        // Check for invoice-to-sale conversion data
+        const conversionRaw = localStorage.getItem('tralo_invoice_to_sale');
+        if (conversionRaw) {
+          try {
+            const conversion = JSON.parse(conversionRaw);
+            localStorage.removeItem('tralo_invoice_to_sale');
+
+            if (conversion.customerName) setCustomerName(conversion.customerName);
+            if (conversion.customerPhone) setCustomerPhone(conversion.customerPhone);
+
+            if (conversion.items?.length > 0) {
+              const prefilled: ProductItem[] = conversion.items.map((item: any, idx: number) => {
+                const inventoryMatch = (inventoryData || []).find(
+                  (p: any) => p.product_name.toLowerCase() === (item.productName || '').toLowerCase()
+                );
+                const qty = Number(item.quantity) || 1;
+                const price = Number(item.unitPrice) || 0;
+                const disc = Number(item.discount) || 0;
+                return {
+                  id: `conv-${Date.now()}-${idx}`,
+                  productName: item.productName || 'Item',
+                  quantity: qty,
+                  unitPrice: price,
+                  discount: disc,
+                  total: (qty * price) - disc,
+                  isFromInventory: !!inventoryMatch,
+                  stockAvailable: inventoryMatch?.current_stock,
+                };
+              });
+              setSalesItems(prefilled);
+            }
+          } catch (e) {
+            console.error('Error parsing invoice conversion data:', e);
+          }
+        }
+
       } catch (error) {
         console.error('Error fetching data:', error);
       }

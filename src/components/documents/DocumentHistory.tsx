@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Search, Filter, Download, Edit2, Trash2, Share2, MessageSquare, Mail } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Search, Filter, Download, Edit2, Trash2, Share2, MessageSquare, Mail, ShoppingCart } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ interface Document {
 }
 
 const DocumentHistory = ({ onBack }: DocumentHistoryProps) => {
+  const navigate = useNavigate();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -325,6 +327,58 @@ const DocumentHistory = ({ onBack }: DocumentHistoryProps) => {
     }
   };
 
+  const handleConvertToSale = async (doc: Document) => {
+    try {
+      // Fetch full document with content
+      const { data: fullDoc, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('id', doc.id)
+        .single();
+
+      if (error) throw error;
+
+      const content = (fullDoc as any)?.content;
+      if (!content?.items || content.items.length === 0) {
+        toast({
+          title: "No Items Found",
+          description: "This invoice has no items to convert.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const conversionData = {
+        source: 'document',
+        sourceId: doc.id,
+        sourceNumber: doc.document_number,
+        customerName: content.customerName || doc.customer_name || '',
+        customerPhone: content.customerPhone || content.customer?.phone || '',
+        items: content.items.map((item: any) => ({
+          productName: item.productName || item.description || 'Item',
+          quantity: item.quantity || 1,
+          unitPrice: item.unitPrice || 0,
+          discount: item.discount || 0,
+        })),
+      };
+
+      localStorage.setItem('tralo_invoice_to_sale', JSON.stringify(conversionData));
+      navigate('/sales');
+
+      toast({
+        title: "Converting Invoice to Sale",
+        description: `${doc.document_number} items loaded into sales form.`,
+      });
+    } catch (error) {
+      console.error('Error converting invoice:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load invoice data.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -450,6 +504,17 @@ const DocumentHistory = ({ onBack }: DocumentHistoryProps) => {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          {(document.document_type === 'invoice' || document.document_type === 'proforma_invoice') && document.status !== 'cancelled' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleConvertToSale(document)}
+                              title="Convert to Sale"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                            >
+                              <ShoppingCart className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
