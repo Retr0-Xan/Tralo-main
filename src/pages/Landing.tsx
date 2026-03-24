@@ -200,7 +200,7 @@ const Landing = () => {
                                         />
                                     </Button>
                                 </Link>
-                                <Link to="/about">
+                                <Link to="/help">
                                     <Button
                                         variant="outline"
                                         size="lg"
