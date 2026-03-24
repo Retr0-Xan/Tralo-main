@@ -26,9 +26,7 @@ const Footer = () => {
             <p className="mt-4 text-sm text-muted-foreground max-w-xs leading-relaxed">
               The all-in-one business tool for small and growing businesses across Ghana and West Africa.
             </p>
-            <p className="mt-4 text-sm text-muted-foreground/70 flex items-center gap-1.5">
-              Made with ❤️ in Ghana <span className="text-base">🇬🇭</span>
-            </p>
+
           </div>
 
           {/* Product links */}
